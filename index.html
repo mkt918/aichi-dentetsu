@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f1d9">
+  <title>あいち電鉄 — 愛知めぐりすごろく</title>
+  <meta name="description" content="愛知県の100駅をめぐって物件を買い、いちばんの大金持ちをめざす桃鉄風すごろく。CPU対戦・同じパソコンでの対戦・一人で練習ができます。">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f2d33a'/%3E%3Crect x='6' y='9' width='20' height='13' rx='4' fill='%23ef5a4c' stroke='%23222' stroke-width='2'/%3E%3Ccircle cx='11' cy='25' r='2.5' fill='%23222'/%3E%3Ccircle cx='21' cy='25' r='2.5' fill='%23222'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- タイトル -->
+  <section id="screen-title" class="screen screen--title">
+    <div class="title-wrap">
+      <div id="logo-slot" class="logo"></div>
+      <h1 class="sr-only">あいち電鉄</h1>
+      <p class="tagline">愛知県の100駅をめぐる、おおきなすごろく。<br>物件を買って、いちばんの大金持ちをめざそう。</p>
+      <div id="mode-list" class="mode-list"></div>
+      <div class="title-sub">
+        <button id="btn-continue" class="btn btn--soft btn--sm" hidden>つづきからあそぶ</button>
+        <button id="btn-rules" class="btn btn--outline btn--sm">あそびかた</button>
+        <button id="btn-sound-title" class="btn btn--outline btn--sm" aria-pressed="true">効果音 ON</button>
+      </div>
+      <p class="title-note">同じパソコンで交代しながら遊べます。CPUだけで対戦させて観戦することもできます。</p>
+    </div>
+  </section>
+
+  <!-- ゲーム設定 -->
+  <section id="screen-setup" class="screen screen--setup" hidden>
+    <div class="setup-wrap">
+      <button id="btn-setup-back" class="btn btn--outline btn--sm">← もどる</button>
+      <h2 id="setup-title">ゲームの設定</h2>
+      <p id="setup-lead" class="setup-lead"></p>
+      <fieldset class="setup-block">
+        <legend>あそぶ長さ</legend>
+        <div id="years-pick" class="seg" role="radiogroup" aria-label="あそぶ長さ"></div>
+        <p id="years-note" class="hint"></p>
+      </fieldset>
+      <fieldset class="setup-block">
+        <legend>プレイヤー</legend>
+        <div id="slots" class="slots"></div>
+        <p id="slots-note" class="hint"></p>
+      </fieldset>
+      <div class="setup-actions">
+        <button id="btn-start" class="btn btn--lg">ゲームスタート</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ゲーム画面 -->
+  <section id="screen-game" class="screen screen--game" hidden>
+    <header id="hud-top">
+      <div class="hud-date" id="hud-date"></div>
+      <button class="hud-dest" id="hud-dest" type="button" aria-label="目的地を地図で見る"></button>
+      <div class="hud-tools">
+        <button class="icon-btn" id="btn-sound" type="button" aria-label="効果音" aria-pressed="true"></button>
+        <button class="icon-btn" id="btn-menu" type="button" aria-label="メニュー"></button>
+      </div>
+    </header>
+    <main id="stage" class="stage">
+      <svg id="map" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="愛知県の地図"></svg>
+      <div id="map-tools" class="map-tools">
+        <button class="icon-btn" data-act="zoom-in" type="button" aria-label="拡大">＋</button>
+        <button class="icon-btn" data-act="zoom-out" type="button" aria-label="縮小">－</button>
+        <button class="icon-btn" data-act="fit" type="button" aria-label="全体を見る"></button>
+        <button class="icon-btn" data-act="follow" type="button" aria-label="自動で追いかける" aria-pressed="true"></button>
+      </div>
+      <div id="banner" class="banner" aria-live="polite"></div>
+      <div id="dice-box" class="dice-box" aria-live="polite"></div>
+      <div id="speed-box" class="speed-box" hidden></div>
+    </main>
+    <footer id="actionbar" class="actionbar">
+      <div id="action-msg" class="action-msg" aria-live="polite"></div>
+      <div id="action-buttons" class="action-buttons"></div>
+    </footer>
+    <aside id="sidebar" class="sidebar">
+      <div id="players" class="players" aria-label="プレイヤー"></div>
+      <section id="side" class="side">
+        <h3>できごと</h3>
+        <ol id="log" class="log"></ol>
+      </section>
+    </aside>
+  </section>
+
+  <!-- 結果 -->
+  <section id="screen-result" class="screen screen--result" hidden></section>
+
+  <div id="modal-root"></div>
+</div>
+
+<script src="js/stations.js"></script>
+<script src="js/data.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/board.js"></script>
+<script src="js/logic.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/art.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/mapview.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+/* Hallmark · genre: playful · macrostructure: Workbench (game board) · theme: Hum (adapted for an app, not a marketing page)
+ * nav: none (game HUD) · footer: none · enrichment: Tier B hand-built SVG (map, characters, icons) */
+:root {
+  /* paper — cream, never pure white */
+  --color-paper: oklch(97% 0.012 95);
+  --color-paper-2: oklch(94% 0.016 95);
+  --color-paper-3: oklch(91% 0.020 95);
+
+  /* ink — near-black with a cool tilt, never pure black */
+  --color-ink: oklch(20% 0.012 250);
+  --color-ink-2: oklch(42% 0.02 250);
+
+  /* multi-accent: pear = primary / cyan = secondary / coral = pop */
+  --color-accent: oklch(86% 0.18 95);
+  --color-accent-deep: oklch(70% 0.16 95);
+  --color-accent-ink: oklch(24% 0.03 95);
+
+  --color-accent-2: oklch(66% 0.18 235);
+  --color-accent-2-deep: oklch(50% 0.16 235);
+  --color-accent-2-ink: oklch(98% 0.01 235);
+
+  --color-accent-3: oklch(68% 0.24 18);
+  --color-accent-3-deep: oklch(52% 0.20 18);
+  --color-accent-3-ink: oklch(98% 0.01 18);
+
+  --color-mint: oklch(80% 0.16 150);
+  --color-mint-deep: oklch(60% 0.14 150);
+  --color-lavender: oklch(74% 0.16 305);
+  --color-lavender-deep: oklch(56% 0.15 305);
+  --color-gold: oklch(78% 0.16 80);
+  --color-gold-soft: oklch(92% 0.10 85);
+  --color-focus: oklch(55% 0.20 250);
+  --color-rule: oklch(85% 0.02 95);
+  --color-money-up: oklch(48% 0.15 150);
+  --color-money-down: oklch(52% 0.20 18);
+
+  /* 地図 */
+  --map-sea: oklch(84% 0.065 225);
+  --map-wave: oklch(89% 0.05 225);
+  --map-shore: oklch(92% 0.05 205);
+  --map-land: oklch(90% 0.10 128);
+  --map-coast: oklch(70% 0.10 140);
+  --map-dot: oklch(84% 0.10 130);
+  --map-neighbor: oklch(88% 0.04 100);
+  --map-pref-text: oklch(55% 0.03 100);
+  --map-region-text: oklch(52% 0.10 140);
+  --map-sea-text: oklch(52% 0.10 235);
+  --map-river: oklch(80% 0.09 230);
+  --map-hill: oklch(72% 0.09 145);
+  --map-snow: oklch(97% 0.012 100);
+  --map-tree: oklch(76% 0.13 145);
+  --map-tree-2: oklch(68% 0.13 150);
+  --map-house: oklch(95% 0.03 90);
+  --map-roof: oklch(70% 0.14 40);
+  --rail-bed: oklch(52% 0.03 250);
+  --rail-line: oklch(97% 0.012 95);
+  --sq-blue: oklch(64% 0.18 235);
+  --sq-red: oklch(66% 0.23 18);
+  --sq-yellow: oklch(82% 0.17 90);
+  --sq-event: oklch(68% 0.17 305);
+  --god-robe: oklch(48% 0.07 300);
+  --god-skin: oklch(78% 0.05 270);
+
+  /* type */
+  --font-display: "Plus Jakarta Sans", "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic UI", sans-serif;
+  --font-body: "M PLUS Rounded 1c", "Plus Jakarta Sans", "Hiragino Maru Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.6rem;
+  --text-display: clamp(1.7rem, 3vw + 1rem, 2.6rem);
+
+  /* 4pt spacing scale */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4.5rem;
+
+  /* radii — Hum is the rounded theme, no square corners */
+  --radius-card: 20px;
+  --radius-chunk: 26px;
+  --radius-pill: 999px;
+  --radius-input: 12px;
+
+  /* motion */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-snap: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-press: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dur-short: 140ms;
+  --dur-med: 220ms;
+
+  /* layout */
+  --hud-h: 56px;
+  --tap: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ease-spring: var(--ease-out);
+  }
+}
