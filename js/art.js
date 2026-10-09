@@ -250,7 +250,6 @@
       <path d="${landD}" class="m-shore" style="stroke-width:${(34 * f).toFixed(1)}"/>
       <path d="${landD}" class="m-land" style="stroke-width:${(3.5 * f).toFixed(1)}"/>
       <path d="${landD}" fill="url(#pDot)"/>
-      <path d="${landD}" fill="url(#pGrid)"/>
       ${rivers}${islands}
       ${deco}
       ${label([300, 190], '尾 張', 64, 0, 'm-region')}${label([760, 500], '三 河', 76, 0, 'm-region')}

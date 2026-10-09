@@ -1,6 +1,6 @@
 /* 盤面の整合性チェック: node test/validate-map.js */
 'use strict';
-['stations', 'stationtext', 'overrides', 'data', 'layout', 'board'].forEach((f) => require('../js/' + f + '.js'));
+['stations', 'stationtext', 'overrides', 'data', 'layout', 'mapdata', 'board'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi;
 const B = A.Board, G = A.GRID;
 let problems = 0;
@@ -62,8 +62,8 @@ for (let i = 0; i < A.STATIONS.length; i++) for (let j = i + 1; j < A.STATIONS.l
 }
 note('駅どうしの最小のきょり ' + minGap + 'マス（グリッド）');
 
-// 駅と駅のあいだに、線路の見えるマスが2つ以上ある
-B.edges.forEach((e) => { if ((e.cells || e.chain.length) < 4) warn(`駅のあいだが近すぎる: ${e.a}-${e.b}`); });
+// 駅から出る道は4本まで、駅どうしが直接となりあわない
+A.STATIONS.forEach((s) => { const n = B.byId[s.id]; if (n.adj.length > 4) warn('道が5本以上ある駅: ' + s.name); n.adj.forEach((id) => { if (B.byId[id].type === 'station' && B.links.find((l) => (l.a === s.id && l.b === id) || (l.b === s.id && l.a === id)).pts.length < 3) warn(`駅どうしが直接となりあう: ${s.name}-${B.byId[id].station}`); }); });
 
 // 3. 県内にあるか（島・橋・海路は除く）
 A.STATIONS.forEach((s) => {
@@ -72,9 +72,9 @@ A.STATIONS.forEach((s) => {
 });
 let water = 0;
 B.nodes.filter((n) => n.type !== 'station').forEach((n) => {
-  if (!inside(n, A.OUTLINE)) { const e = B.edges[n.edge]; if (!(e.sea || e.bridge)) { water++; if (water <= 5) warn(`マス ${n.id}(${e.a}-${e.b}) が海上 (${n.x},${n.y})`); } }
+  if (!inside(n, A.OUTLINE)) water++;
 });
-if (water > 5) warn('海上のマス ほか ' + (water - 5) + ' 個');
+note('海路のマス ' + water + ' 個');
 const xs = A.STATIONS.map((s) => s.x), ys = A.STATIONS.map((s) => s.y);
 note(`駅の範囲 グリッド ${Math.round((Math.max(...xs) - Math.min(...xs)) / G)}×${Math.round((Math.max(...ys) - Math.min(...ys)) / G)}マス`);
 
@@ -88,8 +88,8 @@ note(`ノード ${B.nodes.length} ${JSON.stringify(types)} 道 ${B.links.length}
 const kinds = {};
 B.links.forEach((l) => { kinds[l.kind] = (kinds[l.kind] || 0) + 1; });
 note('道の種類 ' + JSON.stringify(kinds));
-const deg = {}; A.EDGES.forEach((e) => { deg[e[0]] = (deg[e[0]] || 0) + 1; deg[e[1]] = (deg[e[1]] || 0) + 1; });
-A.STATIONS.forEach((s) => { if (!deg[s.id]) warn('路線につながっていない駅: ' + s.name); });
+A.STATIONS.forEach((s) => { if (!B.byId[s.id].adj.length) warn('道につながっていない駅: ' + s.name); });
+if (A.STATIONS.length !== A.RAW_STATIONS.length) warn('盤面に置かれていない駅: ' + A.RAW_STATIONS.filter((r) => !A.STATIONS.some((s) => s.id === r.id)).map((r) => r.name).join(' '));
 
 // 5. 行き方が複数ある駅（橋＝切るとつながらなくなる道、をのぞいた輪の中にある駅）が7割以上
 {

@@ -4,6 +4,7 @@
  * props : { 駅ID: [[名前, アイコン, 価格, 名物度], ...] }  物件エディターで変えた物件
  * meta  : { 駅ID: { name, region, desc } }  駅の名前・地域・説明の書きかえ
  * squares: { "cx,cy": 'blue'|'red'|'yellow'|'event' }  マスの種類を手で固定したもの（マスのグリッド位置がキー）
+ * map   : [[列, 行, 種類, 駅ID], ...]  マップエディターで作った盤面（js/mapdata.js と同じ形）
  * extra : [{ id, name, region, lon, lat, desc }]  エディターで足した駅
  * stations.js のあと、data.js より前に読みこまれ、駅の元データ（RAW_STATIONS）に反映する。 */
 (function (root) {

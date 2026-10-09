@@ -724,3 +724,32 @@ small { font-size: var(--text-xs); }
 .ed-pal-b.is-on { border-color: var(--color-ink); }
 .pal-blue { background: var(--sq-blue); } .pal-red { background: var(--sq-red); }
 .pal-yellow { background: var(--sq-yellow); color: var(--color-ink); } .pal-event { background: var(--sq-event); }
+
+/* ======================================================= 盤面のデザイン（線路は白黒のしま、海路は青い点線） */
+.lk { stroke-linecap: square; stroke-linejoin: miter; fill: none; }
+.lk-rail-bed { stroke: var(--color-ink); stroke-width: 9; }
+.lk-rail-line { stroke: var(--color-paper); stroke-width: 5; stroke-dasharray: 11 11; stroke-linecap: butt; }
+.lk-sea-bed { stroke: var(--color-paper); stroke-width: 8; opacity: 0.55; }
+.lk-sea-line { stroke: var(--color-accent-2-deep); stroke-width: 4; stroke-dasharray: 2 8; stroke-linecap: round; }
+.sq-c { stroke: var(--color-ink); stroke-width: 1.6; }
+.pip { stroke-width: 1.1; }
+
+/* エディター（ポチポチ版） */
+.screen--editor .ed-body { grid-template-rows: auto auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); }
+.screen--editor .ed-body:has(.ed-list) { grid-template-columns: minmax(150px, 230px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.ed-grid { fill: none; stroke: var(--color-ink); stroke-width: 1; opacity: 0.12; }
+.ed-hit { fill: transparent; pointer-events: none; }
+.ed-hit.is-on { pointer-events: all; cursor: crosshair; }
+.ed-st-box { fill: color-mix(in oklch, var(--color-lavender) 70%, var(--color-paper)); stroke: var(--color-ink); stroke-width: 3; }
+.ed-st.is-sel .ed-st-box { stroke: var(--color-focus); stroke-width: 6; }
+.ed-st-name { font-size: 13px; }
+.pal-track { background: var(--color-ink-2); }
+.ed-stpanel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; border-radius: var(--radius-input); background: var(--color-paper); }
+.ed-stpanel label { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: var(--text-sm); }
+.ed-stpanel input, .ed-stpanel select { min-height: 40px; border: 2px solid var(--color-rule); border-radius: var(--radius-input); background: var(--color-paper); padding: 0 8px; font: inherit; }
+.ed-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; max-height: 50vh; overflow-y: auto; }
+.ed-pick-b { display: grid; gap: 2px; text-align: left; border: 2px solid var(--color-rule); border-radius: var(--radius-input); background: var(--color-paper); padding: 6px 10px; min-height: 44px; font-weight: 800; }
+.ed-pick-b small { font-weight: 500; color: var(--color-ink-2); }
+.ed-pick-b.is-new { border-color: var(--color-accent-3); }
+.ed-newst { display: flex; gap: 8px; }
+.ed-newst input { flex: 1; min-width: 0; }
