@@ -5,7 +5,7 @@
   const L = A.Logic, B = A.Board, UI = A.UI, Art = A.Art, AI = A.AI, Au = A.Audio;
   const { h, $, $$, esc, sleep, modal } = UI;
   const fmt = L.fmt;
-  const SAVE_KEY = 'aichi-dentetsu-save-v4', PREF_KEY = 'aichi-dentetsu-pref-v1';
+  const SAVE_KEY = 'aichi-dentetsu-save-v5', PREF_KEY = 'aichi-dentetsu-pref-v1';
   const LEVELS = { 1: 'よわい', 2: 'ふつう', 3: 'つよい' };
   const SPEEDS = [{ v: 1, name: 'ふつう' }, { v: 0.5, name: 'はやい' }, { v: 0.2, name: 'とてもはやい' }, { v: 0, name: 'さいそく' }];
 
@@ -66,6 +66,7 @@
       b.addEventListener('click', () => { Au.unlock(); Au.play('click'); openSetup(k); });
       list.appendChild(b);
     });
+    renderMapPick();
     const save = lsGet(SAVE_KEY);
     const cont = $('#btn-continue');
     cont.hidden = !(save && save.state && !save.state.finished);
@@ -75,6 +76,22 @@
     }
     syncSoundButtons();
     showScreen('screen-title');
+  }
+
+  /** 遊ぶ盤面をえらぶ（えらぶと読みこみ直す。盤面は起動時に組み立てるため） */
+  function setMapId(id) {
+    const o = A.Overrides.load(); o.mapId = id; A.Overrides.save(o);
+    location.reload();
+  }
+  function renderMapPick() {
+    const box = $('#map-pick');
+    box.innerHTML = '';
+    const cur = A.MAP_INFO;
+    const sel = h('select#map-select', { 'aria-label': '遊ぶマップ' });
+    A.allMaps().forEach((m) => { const o = h('option', { value: m.id }, m.name + (m.builtin ? '' : '（自作）') + '・' + m.cells.filter((c) => c[2] === 'S').length + '駅'); if (m.id === cur.id) o.selected = true; sel.appendChild(o); });
+    sel.addEventListener('change', () => setMapId(sel.value));
+    const info = A.allMaps().find((m) => m.id === cur.id);
+    box.append(h('label.map-pick-row', h('span', 'マップ'), sel), h('small', (info && info.desc) || ''));
   }
 
   function openSetup(mode) {
@@ -1154,6 +1171,8 @@
       Au.unlock(); Au.play('click');
       const save = lsGet(SAVE_KEY);
       if (!save || !save.state) return renderTitle();
+      const mid = save.state.config.mapId || 'full';
+      if (mid !== A.MAP_INFO.id) { UI.alert('マップを切りかえます', 'このセーブは別のマップ（' + esc((A.allMaps().find((m) => m.id === mid) || {}).name || mid) + '）で遊んでいたものです。マップを切りかえて読みこみ直すので、もう一度「つづきから」を押してください。').then(() => setMapId(mid)); return; }
       app.lastCfg = { years: save.state.config.years, mode: save.state.config.mode, debug: save.state.config.debug, players: save.state.players.map((p) => ({ name: p.name, type: p.type, level: p.level, char: p.char })) };
       startGame(save.state);
     });

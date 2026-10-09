@@ -4,7 +4,8 @@
  * props : { 駅ID: [[名前, アイコン, 価格, 名物度], ...] }  物件エディターで変えた物件
  * meta  : { 駅ID: { name, region, desc } }  駅の名前・地域・説明の書きかえ
  * squares: { "cx,cy": 'blue'|'red'|'yellow'|'event' }  マスの種類を手で固定したもの（マスのグリッド位置がキー）
- * map   : [[列, 行, 種類, 駅ID], ...]  マップエディターで作った盤面（js/mapdata.js と同じ形）
+ * maps  : { ID: { name, start, cells: [[列, 行, 種類, 駅ID], ...] } }  マップエディターで作った盤面
+ * mapId : 遊ぶ盤面のID（用意された盤面 full/owari/minami/mikawa か、自作の盤面）
  * extra : [{ id, name, region, lon, lat, desc }]  エディターで足した駅
  * stations.js のあと、data.js より前に読みこまれ、駅の元データ（RAW_STATIONS）に反映する。 */
 (function (root) {
@@ -18,6 +19,9 @@
   function clear() { try { root.localStorage.removeItem(KEY); } catch (e) { /* 無視 */ } }
   const OV = Object.assign({ pos: {}, edges: null, props: {}, meta: {}, extra: [], squares: {} }, load());
   if (!Array.isArray(OV.extra)) OV.extra = [];
+  if (!OV.maps || typeof OV.maps !== 'object') OV.maps = {};
+  // 前の版の「1つだけの自作盤面」は、自作マップの1つ目として引きつぐ
+  if (Array.isArray(OV.map) && OV.map.length && !Object.keys(OV.maps).length) { OV.maps.my1 = { name: '自作マップ', start: 'nagoya', cells: OV.map }; OV.mapId = OV.mapId || 'my1'; }
   if (!OV.squares || typeof OV.squares !== 'object') OV.squares = {};
   if (!OV.meta || typeof OV.meta !== 'object') OV.meta = {};
   A.OVERRIDES = OV;

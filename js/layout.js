@@ -62,6 +62,14 @@
     const u = Math.max(0, Math.min(1, (r - 70) / 150)), f = 1 + WIDEN * u * u * (3 - 2 * u);
     return [C[0] + dx * f, C[1] + dy * f];
   });
+  // 知多半島・渥美半島・三河（名古屋から見て南と東）を、さらに大きく広げる
+  const SE = A.MAP_SE != null ? A.MAP_SE : 0.45;
+  base1 = base1.map((p) => {
+    const dx = p[0] - C[0], dy = p[1] - C[1], r = Math.hypot(dx, dy) || 1;
+    const dir = Math.max(0, Math.max(dx, dy) / r);               // 東か南を向いているほど 1
+    const u = Math.max(0, Math.min(1, (r - 60) / 160)), f = 1 + SE * dir * u * u * (3 - 2 * u);
+    return [C[0] + dx * f, C[1] + dy * f];
+  });
   const pos = base1.map((p, i) => [p[0] + ((i * 7) % 5 - 2) * 0.3, p[1] + ((i * 11) % 5 - 2) * 0.3]); // 同じ位置の駅をずらす微小な揺らぎ
   for (let it = 0; it < ITER; it++) {
     const tether = 0.01 + 0.03 * (1 - it / ITER);

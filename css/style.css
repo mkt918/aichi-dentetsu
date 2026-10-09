@@ -753,3 +753,48 @@ small { font-size: var(--text-xs); }
 .ed-pick-b.is-new { border-color: var(--color-accent-3); }
 .ed-newst { display: flex; gap: 8px; }
 .ed-newst input { flex: 1; min-width: 0; }
+
+/* タイトルのマップえらび */
+.map-pick { display: grid; gap: 4px; width: 100%; justify-items: center; text-align: center; }
+.map-pick-row { display: inline-flex; align-items: center; gap: var(--space-2xs); font-weight: 800; }
+.map-pick select { min-height: var(--tap); border: 2px solid var(--color-ink); border-radius: var(--radius-pill); background: var(--color-paper); padding: 0 14px; font: inherit; font-weight: 700; max-width: 100%; }
+.map-pick small { color: var(--color-ink-2); }
+
+/* マップのえらび（エディター） */
+.ed-slots { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-input); background: var(--color-paper); }
+.ed-slots label { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; font-size: var(--text-sm); }
+.ed-slots select { min-height: 40px; max-width: 60vw; border: 2px solid var(--color-rule); border-radius: var(--radius-input); background: var(--color-paper); padding: 0 8px; font: inherit; }
+.ed-slots .hint { flex-basis: 100%; }
+.screen--editor .ed-body { grid-template-rows: auto auto auto auto minmax(0, 1fr) auto; }
+
+/* 物件エディター（作り直し） */
+.screen--editor .ed-body.ed-body--props { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.screen--editor .ed-body.ed-body--props:has(.ed-ptable--all) { grid-template-rows: auto auto minmax(0, 1fr); }
+.ed-pmodes { display: flex; gap: 6px; flex-wrap: wrap; }
+.ed-pwrap { min-height: 0; display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: 8px; }
+.ed-sthead { display: flex; flex-wrap: wrap; gap: 10px; }
+.ed-sthead label { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; font-size: var(--text-sm); }
+.ed-sthead input, .ed-sthead select, .ed-bar select { min-height: 40px; border: 2px solid var(--color-rule); border-radius: var(--radius-input); background: var(--color-paper); padding: 0 8px; font: inherit; }
+.ed-ptable { display: grid; gap: 4px; align-content: start; }
+.ed-ptable--all { overflow-y: auto; min-height: 0; background: var(--color-paper); border-radius: var(--radius-card); padding: 8px; }
+.ed-phead, .ed-prow { display: grid; grid-template-columns: 48px minmax(0, 2fr) minmax(0, 1.6fr) minmax(0, 1.3fr) auto; gap: 6px; align-items: center; }
+.ed-phead { font-size: var(--text-xs); font-weight: 800; color: var(--color-ink-2); padding: 0 6px; }
+.ed-prow { padding: 6px; border-radius: var(--radius-input); background: var(--color-paper-2); }
+.ed-prow input, .ed-prow select { min-height: 40px; width: 100%; min-width: 0; border: 2px solid var(--color-rule); border-radius: var(--radius-input); background: var(--color-paper); padding: 0 8px; font: inherit; }
+.ed-icobox { position: relative; width: 44px; height: 44px; }
+.ed-ico { width: 44px; height: 44px; border: 2px solid var(--color-rule); border-radius: var(--radius-input); background: var(--color-paper); display: grid; place-items: center; padding: 0; }
+.ed-ico-sel { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.ed-price { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; gap: 4px; align-items: center; }
+.ed-price-in { display: grid; gap: 1px; }
+.ed-price-txt, .ed-rate { font-size: var(--text-xs); font-weight: 700; color: var(--color-ink-2); }
+.ed-step { min-height: 40px; border: 0; border-radius: var(--radius-input); background: var(--color-paper); font-weight: 800; font-size: var(--text-lg); }
+.ed-fame { display: grid; gap: 2px; }
+.ed-acts { display: flex; gap: 4px; }
+.ed-mini { min-height: 36px; padding: 0 10px; border: 2px solid var(--color-rule); border-radius: var(--radius-pill); background: var(--color-paper); font-weight: 700; white-space: nowrap; }
+.ed-mini.is-del { color: var(--color-accent-3-deep); }
+@media (max-width: 760px) {
+  .ed-pwrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 26vh) auto; }
+  .ed-phead { display: none; }
+  .ed-prow { grid-template-columns: 48px minmax(0, 1fr); }
+  .ed-price, .ed-fame, .ed-acts { grid-column: 1 / -1; }
+}

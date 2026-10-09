@@ -20,15 +20,23 @@
 
   // ---------- 作業コピー ----------
   const ALL = () => A.ALL_STATIONS || A.STATIONS;
-  function loadWork() {
+  // マップの一覧（用意されたもの＋自作。自作は保存のたびに変わるので、毎回 localStorage から読む）
+  function mapsNow() {
+    const own = A.Overrides.load().maps || {};
+    return (A.MAPPRESETS || []).map((m) => Object.assign({ builtin: true }, m))
+      .concat(Object.keys(own).filter((id) => own[id] && Array.isArray(own[id].cells)).map((id) => ({ id, name: own[id].name || '自作マップ', start: own[id].start || 'nagoya', cells: own[id].cells, builtin: false })));
+  }
+  const mapById = (id) => mapsNow().find((m) => m.id === id) || mapsNow()[0];
+  function loadWork(mapId) {
     const o = A.Overrides.load();
-    const src = Array.isArray(o.map) && o.map.length ? o.map : A.MAPDATA;
+    const M = mapById(mapId);
+    ed.mapId = M.id;
     const map = {};
-    src.forEach(([x, y, t, st]) => { map[KEY(x, y)] = t === 'S' ? [x, y, 'S', st] : [x, y, t]; });
+    M.cells.forEach(([x, y, t, st]) => { map[KEY(x, y)] = t === 'S' ? [x, y, 'S', st] : [x, y, t]; });
     const props = {};
     ALL().forEach((s) => { props[s.id] = (o.props && o.props[s.id] ? o.props[s.id] : s.props.map((p) => [p.name, p.icon, p.price, p.fame])).map((r) => r.slice()); });
     (o.extra || []).forEach((x) => { if (!props[x.id]) props[x.id] = (o.props && o.props[x.id]) || [[x.name + 'の名物', 'park', 1000, 2]]; });
-    return { map, props, meta: clone(o.meta || {}), extra: clone(o.extra || []) };
+    return { map, mapName: M.name, start: M.start, builtin: !!M.builtin, props, meta: clone(o.meta || {}), extra: clone(o.extra || []) };
   }
   const stationDef = (id) => ALL().find((s) => s.id === id) || ed.W.extra.find((x) => x.id === id);
   const allIds = () => ALL().map((s) => s.id).concat(ed.W.extra.filter((x) => !ALL().some((s) => s.id === x.id)).map((x) => x.id));
@@ -43,7 +51,7 @@
   function restore(json) { ed.W = JSON.parse(json); markDirty(); }
 
   function open(tab) {
-    ed.W = loadWork();
+    ed.W = loadWork(ed.mapId || (A.MAP_INFO && A.MAP_INFO.id));
     ed.tab = tab || ed.tab || 'map';
     ed.dirty = false; ed.undo = []; ed.redo = []; ed.selSt = null;
     document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.id !== 'screen-editor'; });
@@ -56,7 +64,7 @@
     const W = ed.W, cells = Object.values(W.map);
     const placed = new Set(cells.filter((c) => c[2] === 'S').map((c) => c[3]));
     const out = { unplaced: allIds().filter((id) => !placed.has(id)), lost: 0, touch: [], noProp: [], dupName: [] };
-    const start = stationCell('nagoya');
+    const start = stationCell(W.start);
     if (start) {
       const seen = new Set([KEY(start[0], start[1])]), q = [start];
       for (let i = 0; i < q.length; i++) {
@@ -76,14 +84,24 @@
   // ---------- 保存 ----------
   function save() {
     const p = problems();
-    if (!stationCell('nagoya')) { UI.alert('名古屋駅がありません', 'スタートの名古屋駅は、盤面に置いてください。'); return false; }
-    if (p.lost) { UI.alert('つながっていないマスがあります', '名古屋から線路でつながっていないマスが ' + p.lost + ' 個あります。消すか、線路でつないでください。'); return false; }
+    if (!stationCell(ed.W.start)) { UI.alert('スタートの駅がありません', 'スタートの' + esc(nameOf(ed.W.start)) + '駅を盤面に置くか、「スタート」で別の駅をえらんでください。'); return false; }
+    if (p.lost) { UI.alert('つながっていないマスがあります', 'スタートの駅から線路でつながっていないマスが ' + p.lost + ' 個あります。消すか、線路でつないでください。'); return false; }
     if (p.noProp.length) { UI.alert('物件のない駅があります', esc(p.noProp.map(nameOf).join('、')) + '<br>物件を1つ以上入れてください。'); return false; }
     if (p.dupName.length) { UI.alert('物件の名前がかぶっています', esc(p.dupName.map(([n, s]) => '「' + n + '」(' + s.map(nameOf).join('・') + ')').join('、')) + '<br>ちがう名前にしてください。'); return false; }
     const W = ed.W;
     const map = Object.values(W.map).sort((u, v) => u[1] - v[1] || u[0] - v[0]);
-    const same = JSON.stringify(map) === JSON.stringify(A.MAPDATA.slice().sort((u, v) => u[1] - v[1] || u[0] - v[0]));
-    const out = { map: same ? null : map, props: {}, meta: W.meta, extra: W.extra };
+    const out = Object.assign(A.Overrides.load(), { props: {}, meta: W.meta, extra: W.extra });
+    delete out.map;
+    out.maps = out.maps || {};
+    const base = mapById(ed.mapId);
+    const changed = JSON.stringify(map) !== JSON.stringify(base.cells.slice().sort((u, v) => u[1] - v[1] || u[0] - v[0])) || W.start !== base.start || W.mapName !== base.name;
+    if (W.builtin && changed) {
+      // 用意されたマップは書きかえず、自作マップとして別に保存する
+      ed.mapId = 'my' + Date.now().toString(36);
+      if (W.mapName === base.name) W.mapName = base.name + '（改）';
+      W.builtin = false;
+    }
+    if (!W.builtin) out.maps[ed.mapId] = { name: W.mapName, start: W.start, cells: map };
     allIds().forEach((id) => {
       const d = ALL().find((s) => s.id === id);
       const orig = d ? d.props.map((q) => [q.name, q.icon, q.price, q.fame]) : [];
@@ -111,10 +129,63 @@
       h('button.btn.btn--outline.btn--sm', { type: 'button', onclick: back }, '← ゲームにもどる'),
       h('h2', 'エディター'),
       h('div.ed-tabs', tabBtn('map', 'マップ'), tabBtn('props', '物件')),
-      h('button.btn.btn--sm.btn--pear' + (ed.dirty ? '.is-dirty' : ''), { id: 'ed-save', type: 'button', onclick: () => { if (save()) UI.alert('保存しました', '「ゲームにもどる」を押すと、ゲームに反映されます。'); } }, '保存')));
+      h('button.btn.btn--sm.btn--pear' + (ed.dirty ? '.is-dirty' : ''), { id: 'ed-save', type: 'button', onclick: () => { if (save()) UI.alert('保存しました', '「' + esc(ed.W.mapName) + '」と物件を保存しました。「ゲームにもどる」を押すと、ゲームに反映されます。').then(() => render()); } }, '保存')));
     const body = h('div.ed-body');
     scr.appendChild(body);
-    if (ed.tab === 'map') mapEditor(body); else propEditor(body);
+    if (ed.tab === 'map') { body.appendChild(mapSlotBar()); mapEditor(body); } else propEditor(body);
+  }
+
+  // ---------- マップのえらび・コピー・名前・スタート ----------
+  function switchMap(id) {
+    const go = () => { ed.W = Object.assign(loadWork(id), { props: ed.W.props, meta: ed.W.meta, extra: ed.W.extra }); ed.undo = []; ed.redo = []; ed.selSt = null; render(); };
+    if (ed.dirty) UI.confirm('保存していない変更があります', '保存しないで、別のマップに切りかえますか?', '切りかえる', 'やめる').then((ok) => { if (ok) { ed.dirty = false; go(); } });
+    else go();
+  }
+  function mapSlotBar() {
+    const W = ed.W;
+    const sel = h('select', { 'aria-label': '編集するマップ' });
+    mapsNow().forEach((m) => { const o = h('option', { value: m.id }, m.name + (m.builtin ? '（用意されたマップ）' : '（自作）')); if (m.id === ed.mapId) o.selected = true; sel.appendChild(o); });
+    sel.addEventListener('change', () => switchMap(sel.value));
+    const placed = Object.values(W.map).filter((c) => c[2] === 'S').map((c) => c[3]);
+    const st = h('select', { 'aria-label': 'スタートの駅' });
+    placed.slice().sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'ja')).forEach((id) => { const o = h('option', { value: id }, nameOf(id)); if (id === W.start) o.selected = true; st.appendChild(o); });
+    st.addEventListener('change', () => { pushUndo(); W.start = st.value; markDirty(); });
+    const playing = A.Overrides.load().mapId ? A.Overrides.load().mapId === ed.mapId : ed.mapId === 'full';
+    return h('div.ed-slots',
+      h('label', 'マップ ', sel),
+      h('label', 'スタート ', st),
+      h('button.btn.btn--sm.btn--mint.btn--soft', { type: 'button', onclick: copyMap }, 'コピーして新しく作る'),
+      W.builtin ? null : h('button.btn.btn--sm.btn--outline', { type: 'button', onclick: renameMap }, '名前を変える'),
+      W.builtin ? null : h('button.btn.btn--sm.btn--coral.btn--soft', { type: 'button', onclick: deleteMap }, 'このマップを消す'),
+      h('button.btn.btn--sm.btn--pear' + (playing ? '.btn--outline' : ''), { type: 'button', disabled: playing, onclick: playMap }, playing ? 'いま遊ぶマップ' : 'このマップで遊ぶ'),
+      W.builtin ? h('small.hint', '用意されたマップは書きかわりません。変えて保存すると「（改）」の自作マップとして別に保存されます。') : null);
+  }
+  function askName(title, init) {
+    const inp = h('input', { type: 'text', maxlength: 20, value: init, 'aria-label': 'マップの名前' });
+    return UI.modal({ title, body: h('div.ed-add', h('label', '名前', inp)), actions: [{ label: 'やめる', value: false, kind: 'outline', color: 'ink' }, { label: 'OK', value: true }] }).promise.then((ok) => (ok && inp.value.trim() ? inp.value.trim() : null));
+  }
+  function copyMap() {
+    askName('コピーして新しいマップを作る', ed.W.mapName + 'のコピー').then((nm) => {
+      if (!nm) return;
+      const o = A.Overrides.load(); o.maps = o.maps || {};
+      const id = 'my' + Date.now().toString(36);
+      o.maps[id] = { name: nm, start: ed.W.start, cells: Object.values(ed.W.map) };
+      A.Overrides.save(o);
+      ed.dirty = false; switchMap(id);
+    });
+  }
+  function renameMap() { askName('名前を変える', ed.W.mapName).then((nm) => { if (!nm) return; ed.W.mapName = nm; markDirty(); render(); }); }
+  function deleteMap() {
+    UI.confirm('マップを消す', '「' + esc(ed.W.mapName) + '」を消します。元にはもどせません。', '消す', 'やめる').then((ok) => {
+      if (!ok) return;
+      const o = A.Overrides.load(); if (o.maps) delete o.maps[ed.mapId]; if (o.mapId === ed.mapId) o.mapId = 'full'; A.Overrides.save(o);
+      ed.dirty = false; switchMap('full');
+    });
+  }
+  function playMap() {
+    if (ed.dirty && !save()) return;
+    const o = A.Overrides.load(); o.mapId = ed.mapId; A.Overrides.save(o);
+    UI.alert('このマップで遊びます', '「' + esc(ed.W.mapName) + '」をえらびました。「ゲームにもどる」で反映されます。').then(() => render());
   }
 
   // ---------- 共通の部品 ----------
@@ -150,7 +221,7 @@
         h('button.btn.btn--sm.btn--outline', { type: 'button', disabled: !ed.undo.length, onclick: () => { ed.redo.push(snapshot()); restore(ed.undo.pop()); refreshAll(); } }, '↶ もどす'),
         h('button.btn.btn--sm.btn--outline', { type: 'button', disabled: !ed.redo.length, onclick: () => { ed.undo.push(snapshot()); restore(ed.redo.pop()); refreshAll(); } }, '↷ やりなおす'),
         h('button.btn.btn--sm.btn--ink.btn--outline', { type: 'button', onclick: exportJson }, '書き出し/読みこみ'),
-        h('button.btn.btn--sm.btn--coral.btn--soft', { type: 'button', onclick: resetAll }, '最初の盤面にもどす'));
+        h('button.btn.btn--sm.btn--coral.btn--soft', { type: 'button', onclick: resetAll }, '保存した状態にもどす'));
       pal.innerHTML = '';
       if (ed.tool === 'rail') PAINT.forEach(([k, t]) => pal.appendChild(h('button.ed-pal-b.pal-' + (CLS[k] || 'track') + (ed.paint === k ? '.is-on' : ''), { type: 'button', onclick: () => { ed.paint = k; refreshBar(); } }, t)));
       if (ed.tool === 'station' && ed.selSt) pal.appendChild(stationPanel(ed.selSt));
@@ -307,10 +378,12 @@
     }
 
     function resetAll() {
-      UI.confirm('最初の盤面にもどす', '盤面を最初の状態にもどします（物件や説明の変更は残ります）。', 'もどす', 'やめる').then((ok) => {
+      UI.confirm('保存した状態にもどす', '盤面を、保存した状態（用意されたマップならその元の形）にもどします。物件や説明の変更は残ります。', 'もどす', 'やめる').then((ok) => {
         if (!ok) return;
         pushUndo();
-        ed.W.map = {}; A.MAPDATA.forEach(([x, y, t, st]) => { ed.W.map[KEY(x, y)] = t === 'S' ? [x, y, 'S', st] : [x, y, t]; });
+        const M = mapById(ed.mapId);
+        ed.W.map = {}; M.cells.forEach(([x, y, t, st]) => { ed.W.map[KEY(x, y)] = t === 'S' ? [x, y, 'S', st] : [x, y, t]; });
+        ed.W.start = M.start;
         markDirty(); refreshAll();
       });
     }
@@ -331,16 +404,74 @@
   }
 
   // ======================================================================
-  //  物件エディター
+  //  物件エディター（駅ごと／全物件の一覧）
   // ======================================================================
+  const FAME = [[1, 'ふつう'], [2, '名物'], [3, '超名物']];
+  const yen = (man) => A.Logic.fmt(Math.max(0, Math.round(Number(man) || 0)));
+  // 価格を「きりのいい数」で上げ下げする（100万→200万…、1億→1.2億…）
+  function stepPrice(p, dir) {
+    p = Math.max(100, Number(p) || 100);
+    const mag = Math.pow(10, Math.max(2, Math.floor(Math.log10(p)) - 1));
+    const n = Math.round(p / mag) + dir * (p / mag >= 50 ? 5 : p / mag >= 20 ? 2 : 1);
+    return Math.max(100, n * mag);
+  }
+
   function propEditor(body) {
     const W = ed.W;
+    ed.pmode = ed.pmode || 'station';
     if (!ed.cur || !allIds().includes(ed.cur)) ed.cur = allIds()[0];
+    const dupes = () => { const all = {}; allIds().forEach((i) => (W.props[i] || []).forEach((r) => { all[r[0]] = (all[r[0]] || 0) + 1; })); return all; };
+
+    /** 物件1行（名前・アイコン・価格・名物度・利回りと年収）。onDel があれば「消す」、onDup があれば「複製」 */
+    function propRow(r, opts) {
+      const o = opts || {};
+      const ico = h('button.ed-ico', { type: 'button', title: 'アイコンを変える', 'aria-label': 'アイコンを変える', html: Art.icon(r[1], 26) });
+      const sel = h('select.ed-ico-sel', { 'aria-label': 'アイコン' });
+      Object.keys(ICONS).forEach((k) => { const op = h('option', { value: k }, ICONS[k]); if (k === r[1]) op.selected = true; sel.appendChild(op); });
+      sel.addEventListener('change', () => { r[1] = sel.value; ico.innerHTML = Art.icon(r[1], 26); markDirty(); });
+      ico.addEventListener('click', () => sel.focus());
+      const nm = h('input.ed-in-name', { type: 'text', value: r[0], maxlength: 20, 'aria-label': '物件の名前' });
+      const warn = h('small.ed-warn');
+      const chkName = () => { warn.textContent = dupes()[nm.value] > 1 ? '同じ名前がほかにもあります' : ''; };
+      nm.addEventListener('input', () => { r[0] = nm.value; markDirty(); chkName(); });
+      chkName();
+      const pr = h('input.ed-in-price', { type: 'number', min: 100, step: 100, value: r[2], 'aria-label': '価格（万円）' });
+      const prTxt = h('small.ed-price-txt');
+      const fm = h('select', { 'aria-label': '名物度' });
+      FAME.forEach(([v, t]) => { const op = h('option', { value: v }, t); if (Number(r[3]) === v) op.selected = true; fm.appendChild(op); });
+      const info = h('small.ed-rate');
+      const upd = () => {
+        const price = Number(pr.value) || 0, rate = A.rateFor(price, Number(fm.value));
+        prTxt.textContent = yen(price);
+        info.textContent = '利回り ' + rate + '% ・ 年収 ' + yen(price * rate / 100);
+        if (o.onChange) o.onChange();
+      };
+      const setP = (v) => { pr.value = v; r[2] = v; markDirty(); upd(); };
+      pr.addEventListener('input', () => { r[2] = Number(pr.value) || 0; markDirty(); upd(); });
+      fm.addEventListener('change', () => { r[3] = Number(fm.value); markDirty(); upd(); });
+      upd();
+      const priceBox = h('div.ed-price',
+        h('button.ed-step', { type: 'button', 'aria-label': '安くする', onclick: () => setP(stepPrice(pr.value, -1)) }, '−'),
+        h('div.ed-price-in', pr, prTxt),
+        h('button.ed-step', { type: 'button', 'aria-label': '高くする', onclick: () => setP(stepPrice(pr.value, 1)) }, '＋'));
+      const acts = h('div.ed-acts',
+        o.onDup ? h('button.ed-mini', { type: 'button', onclick: o.onDup }, '複製') : null,
+        o.onDel ? h('button.ed-mini.is-del', { type: 'button', onclick: o.onDel }, '消す') : null,
+        o.onGo ? h('button.ed-mini', { type: 'button', onclick: o.onGo }, o.goLabel) : null);
+      return h('div.ed-prow', h('div.ed-icobox', ico, sel), h('div.ed-name', nm, warn), priceBox, h('div.ed-fame', fm, info), acts);
+    }
+
+    const tabs = h('div.ed-pmodes',
+      h('button.btn.btn--sm.btn--lav' + (ed.pmode === 'station' ? '' : '.btn--outline'), { type: 'button', onclick: () => { ed.pmode = 'station'; render(); } }, '駅ごとに直す'),
+      h('button.btn.btn--sm.btn--lav' + (ed.pmode === 'all' ? '' : '.btn--outline'), { type: 'button', onclick: () => { ed.pmode = 'all'; render(); } }, '全物件の一覧で直す'));
+    body.classList.add('ed-body--props');
+    body.appendChild(tabs);
+    if (ed.pmode === 'all') { allList(body, propRow); return; }
+
     const list = h('div.ed-list');
     const form = h('div.ed-form');
     const search = h('input.ed-search', { type: 'search', placeholder: '駅や物件をさがす', value: ed.search, 'aria-label': '駅や物件をさがす' });
-    const listWrap = h('div.ed-listwrap', search, list);
-    body.append(listWrap, form);
+    body.append(h('div.ed-pwrap', h('div.ed-listwrap', search, list), form));
 
     const matchStation = (id) => {
       const q = ed.search.trim();
@@ -365,51 +496,66 @@
     function drawForm() {
       form.innerHTML = '';
       const id = ed.cur, rows = W.props[id];
-      form.appendChild(h('h3', nameOf(id) + '駅'));
+      const nm = h('input', { type: 'text', value: nameOf(id), maxlength: 12, 'aria-label': '駅の名前' });
+      nm.addEventListener('change', () => { if (nm.value.trim()) { setMeta(id, 'name', nm.value.trim()); drawList(); } });
+      form.appendChild(h('div.ed-sthead', h('label', '駅の名前 ', nm), h('label', '地域 ', regionSelect(id, (v) => { setMeta(id, 'region', v); drawList(); }))));
       form.appendChild(descBox(id));
-      form.appendChild(h('h4', '物件'));
-      form.appendChild(h('p.hint', '価格は万円。ゲームでは安い順にならびます。利回りは価格と名物度で自動に決まります（10%以上は5%刻み）。名前は全駅でかぶらないようにしてください。'));
-      const table = h('div.ed-rows');
       const total = h('p.ed-total');
-      const sum = () => { total.textContent = '合計 ' + A.Logic.fmt(rows.reduce((a, r) => a + (Number(r[2]) || 0), 0)) + ' ・ ' + rows.length + '件' + (rows.length < 5 ? '（5件未満）' : ''); };
-      const dupes = () => { const all = {}; allIds().forEach((i) => (W.props[i] || []).forEach((r) => { all[r[0]] = (all[r[0]] || 0) + 1; })); return all; };
+      const sum = () => { total.textContent = rows.length + '件 ・ 合計 ' + yen(rows.reduce((a, r) => a + (Number(r[2]) || 0), 0)) + (rows.length < 5 ? '（5件未満）' : ''); };
+      const table = h('div.ed-ptable');
       const draw = () => {
         table.innerHTML = '';
-        const dp = dupes();
-        rows.forEach((r, i) => {
-          const ico = h('span.ed-ico', { html: Art.icon(r[1], 26) });
-          const sel = h('select', { 'aria-label': 'アイコン' });
-          Object.keys(ICONS).forEach((k) => { const o = h('option', { value: k }, ICONS[k]); if (k === r[1]) o.selected = true; sel.appendChild(o); });
-          sel.addEventListener('change', () => { r[1] = sel.value; ico.innerHTML = Art.icon(r[1], 26); markDirty(); });
-          const nm = h('input', { type: 'text', value: r[0], maxlength: 20, 'aria-label': '名前' });
-          const warn = h('small.ed-warn');
-          nm.addEventListener('input', () => { r[0] = nm.value; markDirty(); const d2 = dupes(); warn.textContent = d2[nm.value] > 1 ? 'この名前は、ほかにもあります' : ''; });
-          warn.textContent = dp[r[0]] > 1 ? 'この名前は、ほかにもあります' : '';
-          const pr = h('input', { type: 'number', min: 100, step: 100, value: r[2], 'aria-label': '価格(万円)' });
-          const info = h('span.ed-rate');
-          const fm = h('select', { 'aria-label': '名物度' });
-          [[1, 'ふつう'], [2, '名物'], [3, '超名物']].forEach(([v, t]) => { const o = h('option', { value: v }, t); if (Number(r[3]) === v) o.selected = true; fm.appendChild(o); });
-          const upd = () => { const price = Number(pr.value) || 0, rate = A.rateFor(price, Number(fm.value)); info.textContent = '利回り ' + rate + '% ・ 価格 ' + A.Logic.fmt(price) + ' ・ 年収 ' + A.Logic.fmt(Math.round(price * rate / 100)); sum(); };
-          pr.addEventListener('input', () => { r[2] = Number(pr.value) || 0; markDirty(); upd(); });
-          fm.addEventListener('change', () => { r[3] = Number(fm.value); markDirty(); upd(); });
-          upd();
-          const del = h('button.btn.btn--coral.btn--soft.btn--sm', { type: 'button', onclick: () => { pushUndo(); rows.splice(i, 1); markDirty(); draw(); drawList(); } }, '消す');
-          table.appendChild(h('div.ed-row', ico, h('div.ed-name', nm, warn), sel, pr, fm, del, info));
-        });
+        table.appendChild(h('div.ed-phead', h('span', 'アイコン'), h('span', '名前'), h('span', '価格（万円）'), h('span', '名物度・利回り'), h('span', '')));
+        rows.forEach((r, i) => table.appendChild(propRow(r, {
+          onChange: sum,
+          onDup: () => { pushUndo(); rows.splice(i + 1, 0, [r[0] + '2', r[1], r[2], r[3]]); markDirty(); draw(); drawList(); },
+          onDel: () => { pushUndo(); rows.splice(i, 1); markDirty(); draw(); drawList(); },
+        })));
         sum();
       };
       draw();
-      form.append(table, total);
+      form.append(h('h4', '物件（ゲームでは安い順にならびます）'), table, total);
       form.appendChild(h('div.ed-bar',
-        h('button.btn.btn--sm.btn--mint.btn--soft', { type: 'button', onclick: () => { pushUndo(); rows.push(['新しい物件', 'park', 1000, 2]); markDirty(); draw(); drawList(); } }, '＋ 物件をふやす'),
+        h('button.btn.btn--sm.btn--mint', { type: 'button', onclick: () => { pushUndo(); rows.push(['新しい物件', 'park', 1000, 2]); markDirty(); draw(); drawList(); const last = table.querySelectorAll('.ed-in-name'); if (last.length) { last[last.length - 1].focus(); last[last.length - 1].select(); } } }, '＋ 物件をふやす'),
+        h('button.btn.btn--sm.btn--outline', { type: 'button', onclick: () => { pushUndo(); rows.sort((a, b) => a[2] - b[2]); markDirty(); draw(); } }, '安い順にならべる'),
+        h('button.btn.btn--sm.btn--outline', { type: 'button', disabled: !ed.undo.length, onclick: () => { ed.redo.push(snapshot()); restore(ed.undo.pop()); render(); } }, '↶ もどす'),
         h('button.btn.btn--sm.btn--ink.btn--outline', { type: 'button', onclick: () => {
           const d = ALL().find((s) => s.id === id);
           if (!d) return;
           pushUndo(); W.props[id] = d.props.map((p) => [p.name, p.icon, p.price, p.fame]); markDirty(); drawForm(); drawList();
-        } }, 'この駅の物件を元にもどす'),
+        } }, 'この駅を元にもどす'),
         h('button.btn.btn--sm.btn--lav.btn--outline', { type: 'button', onclick: () => { ed.tab = 'map'; ed.tool = 'station'; ed.selSt = id; render(); } }, '地図で見る')));
+      form.appendChild(h('p.hint', '価格は「−」「＋」でも上げ下げできます。利回りは価格と名物度で自動に決まります（安いほど高く、名物ほど高い。10%以上は5%刻み）。'));
     }
     drawList(); drawForm();
+  }
+
+  /** 全物件の一覧（さがす・並べかえて、まとめて直す） */
+  function allList(body, propRow) {
+    const W = ed.W;
+    const bar = h('div.ed-bar');
+    const q = h('input.ed-search', { type: 'search', placeholder: '物件・駅の名前でさがす', value: ed.search, 'aria-label': '物件・駅の名前でさがす' });
+    const sort = h('select', { 'aria-label': '並べかえ' });
+    [['priceDesc', '高い順'], ['priceAsc', '安い順'], ['station', '駅ごと'], ['rate', '利回りの高い順']].forEach(([v, t]) => { const o = h('option', { value: v }, t); if ((ed.psort || 'priceDesc') === v) o.selected = true; sort.appendChild(o); });
+    const count = h('small.ed-total');
+    bar.append(q, h('label', '並べかえ ', sort), count);
+    const table = h('div.ed-ptable.ed-ptable--all');
+    body.append(bar, table);
+    const LIMIT = 150;
+    function draw() {
+      ed.search = q.value; ed.psort = sort.value;
+      const term = q.value.trim();
+      let items = [];
+      allIds().forEach((id) => (W.props[id] || []).forEach((r) => { if (!term || String(r[0]).includes(term) || nameOf(id).includes(term)) items.push({ id, r }); }));
+      const s = sort.value;
+      items.sort((a, b) => (s === 'priceAsc' ? a.r[2] - b.r[2] : s === 'station' ? nameOf(a.id).localeCompare(nameOf(b.id), 'ja') || a.r[2] - b.r[2] : s === 'rate' ? A.rateFor(b.r[2], b.r[3]) - A.rateFor(a.r[2], a.r[3]) : b.r[2] - a.r[2]));
+      count.textContent = items.length + '件' + (items.length > LIMIT ? '（はじめの' + LIMIT + '件を表示。さがすとしぼれます）' : '');
+      table.innerHTML = '';
+      table.appendChild(h('div.ed-phead', h('span', 'アイコン'), h('span', '名前'), h('span', '価格（万円）'), h('span', '名物度・利回り'), h('span', '駅')));
+      items.slice(0, LIMIT).forEach(({ id, r }) => table.appendChild(propRow(r, { onGo: () => { ed.pmode = 'station'; ed.cur = id; render(); }, goLabel: nameOf(id) })));
+    }
+    q.addEventListener('input', draw); sort.addEventListener('change', draw);
+    draw();
   }
 
   A.Editor = { open };

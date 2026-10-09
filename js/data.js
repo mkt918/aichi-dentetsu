@@ -25,6 +25,8 @@
     if (PRICE_FIXED[name]) return PRICE_FIXED[name];
     let m = (ICON_MULT[icon] || 1) * (fame >= 3 ? 1.5 : fame === 2 ? 1.2 : 1);
     if (icon === 'food' && fame >= 3) m = 2; // 有名店
+    // 高い物件ほど、さらに高く（値段の差を大きくする）。元の値段が3000万をこえると、ぐっと上がる
+    if (price > 3000) m *= Math.pow(price / 3000, 0.7);
     return price < 500 ? price : niceRound(price * m);
   }
 
@@ -176,10 +178,10 @@
   // ---- カード ----
   // kind: dice(サイコロ変更) / warp / target(相手指定) / self / money / sale / buyout / stay
   const CARDS = {
-    express:    { name: '急行カード',       desc: 'サイコロを2個ふる。', weight: 16, kind: 'dice', dice: 2, tone: 'accent', price: 600 },
-    limited:    { name: '特急カード',       desc: 'サイコロを3個ふる。', weight: 9, kind: 'dice', dice: 3, tone: 'accent-2', price: 1500 },
-    shinkansen: { name: '新幹線カード',     desc: 'サイコロを4個ふる。', weight: 4, kind: 'dice', dice: 4, tone: 'accent-3', price: 4000 },
-    six:        { name: 'ろくカード',       desc: 'サイコロの目が必ず6になる。', weight: 6, kind: 'dice', dice: 1, fixed: 6, tone: 'mint', price: 800 },
+    express:    { name: '急行カード',       desc: 'サイコロを3個ふる。', weight: 16, kind: 'dice', dice: 3, tone: 'accent', price: 600 },
+    limited:    { name: '特急カード',       desc: 'サイコロを4個ふる。', weight: 9, kind: 'dice', dice: 4, tone: 'accent-2', price: 1500 },
+    shinkansen: { name: '新幹線カード',     desc: 'サイコロを5個ふる。', weight: 4, kind: 'dice', dice: 5, tone: 'accent-3', price: 4000 },
+    six:        { name: 'ろくカード',       desc: 'サイコロ2個の目が、どちらも必ず6になる（12マス）。', weight: 6, kind: 'dice', dice: 2, fixed: 6, tone: 'mint', price: 800 },
     warp:       { name: 'ワープカード',     desc: '好きな駅へ一瞬で移動する。', weight: 3, kind: 'warp', tone: 'lavender', price: 5000 },
     stop:       { name: '足止めカード',     desc: 'ライバル1人を、次の番だけ1マスしか進めなくする。', weight: 8, kind: 'target', tone: 'accent-3', price: 1200 },
     harai:      { name: 'お祓いカード',     desc: '貧乏神を追い払う。次の目的地到着まで現れない。', weight: 7, kind: 'self', tone: 'mint', price: 2500 },

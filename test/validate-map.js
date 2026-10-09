@@ -22,7 +22,9 @@ const cardSt = A.STATIONS.filter((s) => s.card);
 const plainSt = A.STATIONS.filter((s) => s.plain), propSt = A.STATIONS.filter((s) => !s.card && !s.plain);
 note(`駅 ${A.STATIONS.length}（物件駅 ${propSt.length} / カード駅 ${cardSt.length} / 通過駅(地下鉄など) ${plainSt.length} / カード売り場 ${A.STATIONS.filter((s) => s.shop).length}）, 物件 ${all.length}`);
 if (cardSt.length || plainSt.length) warn('カード駅・通過駅は無くしたはず');
-if (A.STATIONS.length < 100 || A.STATIONS.length > 200) warn('駅は100〜200のはず: ' + A.STATIONS.length);
+const FULL = A.MAP_INFO.id === 'full', ST0 = A.START_STATION;
+note('盤面: ' + A.MAP_INFO.name + '（スタート ' + ST0 + '）');
+if (FULL && (A.STATIONS.length < 100 || A.STATIONS.length > 200)) warn('駅は100〜200のはず: ' + A.STATIONS.length);
 A.STATIONS.forEach((s) => {
   if (s.card && s.props.length) warn(s.name + ': カード駅なのに物件がある');
   if (!s.card && !s.plain && s.props.length < 3) warn(s.name + ': 物件が少なすぎる ' + s.props.length);
@@ -38,7 +40,7 @@ all.forEach((p) => {
 });
 const top = all.reduce((a, b) => (b.price > a.price ? b : a));
 note('最高額の物件: ' + top.name + ' ' + top.price + '万円');
-if (top.name !== '名古屋城' || top.price !== 2000000) warn('最高額は名古屋城 200億円のはず: ' + top.name + ' ' + top.price);
+if (FULL && (top.name !== '名古屋城' || top.price !== 2000000)) warn('最高額は名古屋城 200億円のはず: ' + top.name + ' ' + top.price);
 const cheap = all.filter((p) => p.price <= 1000), rich = all.filter((p) => p.price >= 15000);
 note(`安い物件(1000万以下) ${cheap.length}件 利回り ${Math.min(...cheap.map((p) => p.rate))}〜${Math.max(...cheap.map((p) => p.rate))}% / 高い物件(1.5億以上) ${rich.length}件 利回り ${Math.min(...rich.map((p) => p.rate))}〜${Math.max(...rich.map((p) => p.rate))}%`);
 cheap.forEach((p) => { if (p.rate < 40) warn('安い物件の利回りが低い: ' + p.name + ' ' + p.rate); });
@@ -79,17 +81,17 @@ const xs = A.STATIONS.map((s) => s.x), ys = A.STATIONS.map((s) => s.y);
 note(`駅の範囲 グリッド ${Math.round((Math.max(...xs) - Math.min(...xs)) / G)}×${Math.round((Math.max(...ys) - Math.min(...ys)) / G)}マス`);
 
 // 4. つながり・距離・マスの数
-const d0 = B.distFrom('nagoya');
+const d0 = B.distFrom(ST0);
 const unreachable = B.nodes.filter((n) => d0[n.id] === undefined);
 if (unreachable.length) warn('到達できないノード: ' + unreachable.length + '個');
 const types = {};
 B.nodes.forEach((n) => { types[n.type] = (types[n.type] || 0) + 1; });
-note(`ノード ${B.nodes.length} ${JSON.stringify(types)} 道 ${B.links.length}区間 / 犬山からの最大距離 ${Math.max(...Object.values(B.distFrom('inuyama')))}マス / 名古屋→豊橋 ${d0.toyohashi}マス / 名古屋→伊良湖 ${d0.irago}マス`);
+note(`ノード ${B.nodes.length} ${JSON.stringify(types)} 道 ${B.links.length}区間 / スタートからの最大距離 ${Math.max(...Object.values(d0))}マス`);
 const kinds = {};
 B.links.forEach((l) => { kinds[l.kind] = (kinds[l.kind] || 0) + 1; });
 note('道の種類 ' + JSON.stringify(kinds));
 A.STATIONS.forEach((s) => { if (!B.byId[s.id].adj.length) warn('道につながっていない駅: ' + s.name); });
-if (A.STATIONS.length !== A.RAW_STATIONS.length) warn('盤面に置かれていない駅: ' + A.RAW_STATIONS.filter((r) => !A.STATIONS.some((s) => s.id === r.id)).map((r) => r.name).join(' '));
+if (FULL && A.STATIONS.length !== A.RAW_STATIONS.length) warn('盤面に置かれていない駅: ' + A.RAW_STATIONS.filter((r) => !A.STATIONS.some((s) => s.id === r.id)).map((r) => r.name).join(' '));
 
 // 5. 行き方が複数ある駅（橋＝切るとつながらなくなる道、をのぞいた輪の中にある駅）が7割以上
 {
@@ -101,7 +103,7 @@ if (A.STATIONS.length !== A.RAW_STATIONS.length) warn('盤面に置かれてい�
       if (tin[u]) low[v] = Math.min(low[v], tin[u]);
       else { dfs(u, v); low[v] = Math.min(low[v], low[u]); if (low[u] > tin[v]) bridges.add(v < u ? v + '|' + u : u + '|' + v); }
     }
-  })('nagoya', null);
+  })(ST0, null);
   const comp = {}; let c = 0;
   B.nodes.forEach((n) => {
     if (comp[n.id] !== undefined) return;
@@ -113,9 +115,9 @@ if (A.STATIONS.length !== A.RAW_STATIONS.length) warn('盤面に置かれてい�
     }
     c++;
   });
-  const multi = A.STATIONS.filter((s) => comp[s.id] === comp.nagoya).length;
+  const multi = A.STATIONS.filter((s) => comp[s.id] === comp[ST0]).length;
   note(`2通り以上の行き方がある駅 ${multi}/${A.STATIONS.length}`);
-  if (multi < A.STATIONS.length * 0.7) warn('行き方が複数ある駅が7割に届かない: ' + multi);
+  if (FULL && multi < A.STATIONS.length * 0.7) warn('行き方が複数ある駅が7割に届かない: ' + multi);
 }
 
 // 6. ラベル

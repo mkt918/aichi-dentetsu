@@ -38,7 +38,11 @@ const isLand = (x, y) => { const k = x + ',' + y; if (!landC.has(k)) landC.set(k
 const K = (x, y) => x + ',' + y;
 
 // ---------- 1. 駅をマスに置く ----------
-const S = A.STATIONS;
+// REGIONS=nagoya,owari のように地域をしぼると、その地域だけの盤面を作る（名古屋駅はスタートなので必ず入れる）
+const REG = process.env.REGIONS ? new Set(process.env.REGIONS.split(',')) : null;
+const S = REG ? A.STATIONS.filter((s) => REG.has(s.region) || s.id === (process.env.START || 'nagoya') || (process.env.EXTRA || '').split(',').includes(s.id)) : A.STATIONS;
+const SID = new Set(S.map((s) => s.id));
+const EDGES = A.EDGES.filter(([a, b]) => SID.has(a) && SID.has(b));
 const cell = {};
 const cheb = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]));
 const okAt = (id, x, y) => S.every((o) => o.id === id || !cell[o.id] || cheb(cell[o.id], [x, y]) >= 3) && (S.find((s) => s.id === id).island ? !isLand(x, y) : isLand(x, y));
@@ -58,10 +62,10 @@ S.slice().sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0)).forEach((s) => {
   cell[s.id] = [best.x, best.y];
 });
 // 近い駅を、縦・横の並びにそろえる（となりの駅とのずれが1〜2マスなら、片方をずらす）
-const deg = {}; A.EDGES.forEach(([a, b]) => { deg[a] = (deg[a] || 0) + 1; deg[b] = (deg[b] || 0) + 1; });
+const deg = {}; EDGES.forEach(([a, b]) => { deg[a] = (deg[a] || 0) + 1; deg[b] = (deg[b] || 0) + 1; });
 for (let pass = 0; pass < 6; pass++) {
   let moved = 0;
-  A.EDGES.forEach(([a, b]) => {
+  EDGES.forEach(([a, b]) => {
     const pa = cell[a], pb = cell[b];
     const dx = pb[0] - pa[0], dy = pb[1] - pa[1];
     const tryMove = (id, x, y) => { const p = cell[id]; delete cell[id]; if (okAt(id, x, y)) { cell[id] = [x, y]; moved++; return true; } cell[id] = p; return false; };
@@ -165,7 +169,7 @@ function astar(a, b, water, strict) {
 // つなぐ順: まず全駅がつながる「骨組み」（実際の鉄道を優先して短い順）、そのあと輪を作る道。
 // 1つの駅から出る道は4本まで（上下左右に1本ずつ）。道どうしは重ねず、くっつけない。
 const railKey = new Set(); A.LINES.forEach(([, st]) => { for (let i = 0; i + 1 < st.length; i++) railKey.add([st[i], st[i + 1]].sort().join('|')); });
-const all = A.EDGES.map(([a, b, opt]) => ({ a, b, water: !!(opt && (opt.sea || opt.bridge)), rail: railKey.has([a, b].sort().join('|')) || !!(opt && (opt.sea || opt.bridge)), len: Math.abs(cell[a][0] - cell[b][0]) + Math.abs(cell[a][1] - cell[b][1]) }));
+const all = EDGES.map(([a, b, opt]) => ({ a, b, water: !!(opt && (opt.sea || opt.bridge)), rail: railKey.has([a, b].sort().join('|')) || !!(opt && (opt.sea || opt.bridge)), len: Math.abs(cell[a][0] - cell[b][0]) + Math.abs(cell[a][1] - cell[b][1]) }));
 const w = (e) => e.len * (e.rail ? 1 : 1.6);
 all.sort((u, v) => w(u) - w(v));
 const degN = {}; S.forEach((s) => { degN[s.id] = 0; });
@@ -213,6 +217,17 @@ nearAll().sort((u, v) => u.len - v.len).forEach((e) => {
   if (p) commit(e, p);
 });
 loosePass();
+// それでも離れている所は、いちばん近い駅どうしをつなぐ
+for (let guard = 0; guard < 40; guard++) {
+  const roots = new Set(S.map((s) => find(s.id)));
+  if (roots.size <= 1) break;
+  let best = null;
+  S.forEach((s) => S.forEach((o) => { if (find(s.id) === find(o.id) || s.island || o.island) return; const d = Math.abs(cell[s.id][0] - cell[o.id][0]) + Math.abs(cell[s.id][1] - cell[o.id][1]); if (!best || d < best.len) best = { a: s.id, b: o.id, water: false, rail: false, len: d }; }));
+  if (!best) break;
+  const p = route(best, 'strict') || route(best, 'loose');
+  if (!p) { fails.push(best.a + '-' + best.b + '(つなげない)'); break; }
+  commit(best, p);
+}
 // 2) 輪を作る道（駅の手が空いていて、きれいに引ける道だけ）
 all.forEach((e) => {
   if (routes.includes(e) || degN[e.a] >= 4 || degN[e.b] >= 4) return;
@@ -294,6 +309,7 @@ const out = '/* あいち電鉄 — 盤面データ（tools/genmap.js が作成�
   ' * となりあう（上下左右の）マスどうしが、道でつながる。陸の外のマスは海路として描く。 */\n' +
   '(function (root) {\n  \'use strict\';\n  const A = (root.Aichi = root.Aichi || {});\n  A.MAPDATA = [\n' +
   rows.map((r) => '    ' + JSON.stringify(r)).join(',\n') + ',\n  ];\n})(typeof globalThis !== \'undefined\' ? globalThis : this);\n';
+if (process.env.OUT === 'json') { process.stdout.write(JSON.stringify(rows)); process.exit(0); }
 fs.writeFileSync(path.join(__dirname, '..', 'js', 'mapdata.js'), out);
 console.log('マス', list.length, JSON.stringify(cnt));
 if (fails.length) console.log('注意:', fails.join(' '));

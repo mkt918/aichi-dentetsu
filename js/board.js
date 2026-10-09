@@ -35,12 +35,20 @@
   };
 
   const TYPE = { b: 'blue', r: 'red', y: 'yellow', e: 'event' };
-  /** 使う盤面データ（エディターで保存したものがあれば、それ） */
-  function mapCells() {
-    const ov = A.OVERRIDES && A.OVERRIDES.map;
-    const ok = Array.isArray(ov) && ov.length > 10 && ov.every((c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]));
-    return ok ? ov : A.MAPDATA || [];
+  /** 遊ぶ盤面（タイトルでえらんだもの）。用意された盤面（A.MAPPRESETS）か、エディターで作った盤面（OVERRIDES.maps） */
+  function allMaps() {
+    const presets = (A.MAPPRESETS || [{ id: 'full', name: '愛知ぜんぶ', start: 'nagoya', cells: A.MAPDATA || [] }]).map((m) => Object.assign({ builtin: true }, m));
+    const own = (A.OVERRIDES && A.OVERRIDES.maps) || {};
+    const ok = (c) => Array.isArray(c) && c.length > 10 && c.every((r) => Array.isArray(r) && Number.isFinite(r[0]) && Number.isFinite(r[1]));
+    return presets.concat(Object.keys(own).filter((id) => own[id] && ok(own[id].cells)).map((id) => ({ id, name: own[id].name || '自作マップ', desc: own[id].desc || 'エディターで作った盤面', start: own[id].start || 'nagoya', cells: own[id].cells, builtin: false })));
   }
+  function currentMap() {
+    const want = (typeof process !== 'undefined' && process.env && process.env.MAP) || (A.OVERRIDES && A.OVERRIDES.mapId) || 'full';
+    const list = allMaps();
+    return list.find((m) => m.id === want) || list[0];
+  }
+  const MAP = currentMap();
+  const mapCells = () => MAP.cells;
 
   function build() {
     const cells = new Map();
@@ -55,6 +63,7 @@
     // 盤面に置かれていない駅は、ゲームから外す
     A.ALL_STATIONS = A.ALL_STATIONS || A.STATIONS.slice(); // エディター用に、外す前の全駅を残す
     for (let i = A.STATIONS.length - 1; i >= 0; i--) if (!placed[A.STATIONS[i].id]) A.STATIONS.splice(i, 1);
+    A.START_STATION = placed[MAP.start] ? MAP.start : placed.nagoya ? 'nagoya' : A.STATIONS[0].id;
     A.STATIONS.forEach((s) => { s.cx = placed[s.id][0]; s.cy = placed[s.id][1]; s.x = s.cx * G; s.y = s.cy * G; });
 
     const at = (x, y) => cells.get(x + ',' + y);
@@ -230,5 +239,5 @@
   }
   B.labels = computeLabels();
 
-  Object.assign(A, { Board: Object.assign(B, { G, distFrom, stepOptions, heading, reachable, pathTo, mulberry32, isLand }) });
+  Object.assign(A, { MAP_INFO: { id: MAP.id, name: MAP.name, start: MAP.start, builtin: MAP.builtin }, allMaps, Board: Object.assign(B, { G, distFrom, stepOptions, heading, reachable, pathTo, mulberry32, isLand }) });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

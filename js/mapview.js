@@ -8,7 +8,10 @@
   const bx = A.OUTLINE.map((p) => p[0]), by = A.OUTLINE.map((p) => p[1]);
   const minX = Math.min.apply(null, bx), maxX = Math.max.apply(null, bx), minY = Math.min.apply(null, by), maxY = Math.max.apply(null, by);
   const WORLD = { x0: minX - 160, y0: minY - 160, x1: maxX + 160, y1: maxY + 160 };
-  const FIT = { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: maxX - minX + 200, h: maxY - minY + 200 };
+  // 全体表示は、盤面（駅とマス）がおさまる大きさにする（地域をしぼったマップでも、盤面が画面いっぱいになる）
+  const nx = B.nodes.map((n) => n.x), ny = B.nodes.map((n) => n.y);
+  const bx0 = Math.min.apply(null, nx), bx1 = Math.max.apply(null, nx), by0 = Math.min.apply(null, ny), by1 = Math.max.apply(null, ny);
+  const FIT = { cx: (bx0 + bx1) / 2, cy: (by0 + by1) / 2, w: bx1 - bx0 + 240, h: by1 - by0 + 240 };
   const ZOOM_MIN = 120, ZOOM_MAX = Math.max(3200, (maxX - minX) * 1.5);
 
   function svgEl(tag, attrs, html) {

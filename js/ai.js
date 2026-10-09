@@ -162,27 +162,27 @@
 
     if (level === 2) {
       // ふつう: 遠いときだけ素直にカードを使う
-      if (has('warp') && dist >= 10) return { action: 'card', cardId: 'warp', arg: s.dest };
-      if (has('stop') && rivals.length && rivalMin <= 8 && Math.random() < 0.5) return { action: 'card', cardId: 'stop', arg: rivals[0].id };
+      if (has('warp') && dist >= 20) return { action: 'card', cardId: 'warp', arg: s.dest };
+      if (has('stop') && rivals.length && rivalMin <= 14 && Math.random() < 0.5) return { action: 'card', cardId: 'stop', arg: rivals[0].id };
       if (has('sale') && p.cash >= 4000) return { action: 'card', cardId: 'sale' };
       const dice = ['shinkansen', 'limited', 'express'].filter((c) => has(c));
-      if (dice.length && dist >= 15) return { action: 'card', cardId: dice[0] };
+      if (dice.length && dist >= 22) return { action: 'card', cardId: dice[0] };
       return roll;
     }
 
     // つよい: ライバルとの競争を見て、いちばん確実に先に着けるカードを選ぶ
-    if (has('warp') && dist >= 6) return { action: 'card', cardId: 'warp', arg: s.dest };
-    if (has('stop') && rivals.length && rivalMin <= 12 && rivalMin <= dist + 3) return { action: 'card', cardId: 'stop', arg: rivals[0].id };
+    if (has('warp') && dist >= 12) return { action: 'card', cardId: 'warp', arg: s.dest };
+    if (has('stop') && rivals.length && rivalMin <= 20 && rivalMin <= dist + 4) return { action: 'card', cardId: 'stop', arg: rivals[0].id };
     if (has('sale') && p.cash >= 2500) return { action: 'card', cardId: 'sale' };
-    if (has('six') && dist <= 6 && dist >= 4) return { action: 'card', cardId: 'six' };
+    if (has('six') && dist <= 12 && dist >= 10) return { action: 'card', cardId: 'six' };
     const diceCards = ['express', 'limited', 'shinkansen'].filter((c) => has(c)); // 小さい順
-    if (diceCards.length && dist > 6) {
+    if (diceCards.length && dist > 12) {
       const racing = rivalMin <= dist + 2;
       for (const c of diceCards) {
         if (pReach(A.CARDS[c].dice, dist) >= (racing ? 0.45 : 0.7)) return { action: 'card', cardId: c };
       }
       const big = diceCards[diceCards.length - 1];
-      if (dist >= 18 || racing) return { action: 'card', cardId: big };
+      if (dist >= 30 || racing) return { action: 'card', cardId: big };
     }
     return roll;
   }

@@ -10,7 +10,7 @@
   A.STATIONS.forEach((s) => { STATION[s.id] = s; s.props.forEach((p) => { PROP[p.id] = p; }); });
 
   const START_CASH = 3000;
-  const START_STATION = 'nagoya';
+  const START_STATION = A.START_STATION || 'nagoya'; // 盤面ごとのスタート駅（board.js が決める）
 
   // ---------- 乱数（state.rng を進めるので、セーブ＆再現ができる） ----------
   function rnd(s) {
@@ -48,7 +48,7 @@
   function current(s) { return (s.round + s.turnIdx) % s.players.length; }
 
   // ---------- 新しいゲーム ----------
-  function freshTurn() { return { cardUsed: false, dice: 1, fixed: null, sale: false, warped: false, slow: false }; }
+  function freshTurn() { return { cardUsed: false, dice: 2, fixed: null, sale: false, warped: false, slow: false }; }
 
   function newGame(cfg, seed) {
     const players = cfg.players.map((pc, i) => ({
@@ -59,7 +59,7 @@
     }));
     const s = {
       v: 1, rng: ((seed != null ? seed : Math.random() * 4294967296) >>> 0),
-      config: { years: cfg.years || 1, debug: !!cfg.debug, mode: cfg.mode || 'versus' },
+      config: { years: cfg.years || 1, debug: !!cfg.debug, mode: cfg.mode || 'versus', mapId: (A.MAP_INFO && A.MAP_INFO.id) || 'full' },
       round: 0, turnIdx: 0, players, owners: {}, levels: {}, dest: null, destBase: 0, godHolder: -1,
       turn: freshTurn(), log: [], finished: false, yearly: [],
     };
@@ -195,9 +195,9 @@
   function pickDest(s) {
     const cands = A.STATIONS.filter((st) => st.id !== s.dest && !s.players.some((p) => p.pos === st.id));
     const minD = (st) => Math.min.apply(null, s.players.map((p) => B.distFrom(st.id)[p.pos]));
-    // 目的地は、いちばん近い人から 10〜34 マス先の駅をえらぶ（マスが多いぶん、遠すぎると遊びのテンポが落ちる）
-    let pool = cands.filter((st) => minD(st) >= 10 && minD(st) <= 34);
-    if (!pool.length) pool = cands.filter((st) => minD(st) >= 10);
+    // 目的地は、いちばん近い人から 15〜50 マス先の駅をえらぶ（マスが多いぶん、遠すぎると遊びのテンポが落ちる）
+    let pool = cands.filter((st) => minD(st) >= 15 && minD(st) <= 50);
+    if (!pool.length) pool = cands.filter((st) => minD(st) >= 15);
     if (!pool.length) pool = cands;
     const st = pool[rint(s, pool.length)];
     const avg = s.players.reduce((a, p) => a + B.distFrom(st.id)[p.pos], 0) / s.players.length;
@@ -270,8 +270,8 @@
   function squareEffect(s, idx) {
     const p = s.players[idx], node = B.byId[p.pos], f = yf(s);
     switch (node.type) {
-      case 'blue': { const amount = round10((200 + rint(s, 3) * 100) * f); p.cash += amount; return { kind: 'blue', amount }; }
-      case 'red': { const amount = round10((100 + rint(s, 3) * 100) * f); p.cash -= amount; return { kind: 'red', amount }; }
+      case 'blue': { const amount = round10((400 + rint(s, 3) * 200) * f); p.cash += amount; return { kind: 'blue', amount }; }
+      case 'red': { const amount = round10((200 + rint(s, 3) * 200) * f); p.cash -= amount; return { kind: 'red', amount }; }
       case 'yellow': return { kind: 'yellow', card: drawCard(s) };
       case 'event': return applyEvent(s, idx, A.EVENTS[rint(s, A.EVENTS.length)]);
       default: return { kind: 'station', station: node.station };
@@ -393,7 +393,7 @@
     if (!s.turn.warped) {
       const n = s.turn.dice;
       let dice = [];
-      if (s.debugDice && s.debugDice.length) { dice = s.debugDice.slice(0, 4); s.debugDice = null; }
+      if (s.debugDice && s.debugDice.length) { dice = s.debugDice.slice(0, 5); s.debugDice = null; }
       else for (let i = 0; i < n; i++) dice.push(s.turn.fixed || 1 + rint(s, 6));
       let total = dice.reduce((a, b) => a + b, 0);
       const slow = s.turn.slow;
