@@ -146,7 +146,7 @@
     const kindDef = () => KINDS.find((k) => k[0] === ed.kind);
     function setMsg() {
       msg.textContent = ed.mode === 'move'
-        ? '駅をドラッグすると、マスにそろって動きます。駅をタッチすると右に情報が出ます。何もない所のドラッグで地図が動きます。'
+        ? '下に敷いた道は、いまのゲームの盤面です。駅をドラッグするとマスにそろって動き、変えた道は橙の線で出ます（保存してゲームにもどると、盤面に引き直されます）。駅をタッチすると右に情報が出ます。何もない所のドラッグで地図が動きます。'
         : (ed.pick ? '「' + nameOf(ed.pick) + '」とつなぐ駅をタッチしてください（すでにつながっていれば切れます）。種類: ' + kindDef()[1] : '1つ目の駅をタッチして、つぎに2つ目の駅をタッチします。上の「種類」で、つなぐ道の種類をえらべます。');
     }
     function refreshBar() {
@@ -171,12 +171,27 @@
       const bg = sv('g'); bg.innerHTML = Art.mapBackground();
       gE = sv('g'); gS = sv('g');
       svg.append(bg, gE, gS);
+      // 実際のゲーム盤（グリッドに引かれた道とマス）を下に敷く。ここは保存→ゲームにもどると引き直される
+      const B = A.Board, gB = sv('g', { class: 'ed-board' });
+      ['pref', 'national', 'expressway', 'rail', 'bridge', 'sea'].forEach((kind) => {
+        B.links.filter((l) => l.kind === kind).forEach((l) => {
+          const d = 'M' + l.pts.map((p) => p[0] + ' ' + p[1]).join('L');
+          gB.appendChild(sv('path', { d, class: 'lk lk-' + kind + '-bed' }));
+          gB.appendChild(sv('path', { d, class: 'lk lk-' + kind + '-line' }));
+        });
+      });
+      B.nodes.forEach((n) => { if (n.type !== 'station') gB.appendChild(sv('rect', { x: n.x - 7, y: n.y - 7, width: 14, height: 14, rx: 3, class: 'ed-mid' })); });
+      svg.insertBefore(gB, gE);
+      // 変えた道（つなぎ直した・動かした駅の道）と、選んだ駅の道だけを、まっすぐな線で重ねる
+      const orig = new Set(A.EDGES.map((e) => (e[0] < e[1] ? e[0] + '|' + e[1] : e[1] + '|' + e[0])));
+      const moved = (id) => { const s = A.STATIONS.find((x) => x.id === id); return !s || s.x !== W.pos[id][0] || s.y !== W.pos[id][1]; };
       W.edges.forEach((e, i) => {
         const a = W.pos[e[0]], b = W.pos[e[1]];
         if (!a || !b) return;
-        const kinds = (e[2] && e[2].kinds) || ['rail'];
-        const k = e[2] && e[2].sea ? 'sea' : e[2] && e[2].bridge ? 'bridge' : ['rail', 'expressway', 'national', 'pref'].find((x) => kinds.includes(x)) || 'rail';
-        gE.appendChild(sv('line', { class: 'ed-edge k-' + k + (ed.sel && (e[0] === ed.sel || e[1] === ed.sel) ? ' is-sel' : ''), x1: a[0], y1: a[1], x2: b[0], y2: b[1], 'data-i': i }));
+        const isSel = ed.sel && (e[0] === ed.sel || e[1] === ed.sel);
+        const changed = !orig.has(e[0] < e[1] ? e[0] + '|' + e[1] : e[1] + '|' + e[0]) || moved(e[0]) || moved(e[1]);
+        if (!changed && !isSel) return;
+        gE.appendChild(sv('line', { class: 'ed-edge ' + (changed ? 'is-changed' : 'is-sel'), x1: a[0], y1: a[1], x2: b[0], y2: b[1], 'data-i': i }));
       });
       const bad = closeSet(problems());
       allIds().forEach((id) => {

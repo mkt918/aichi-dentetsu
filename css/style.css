@@ -710,3 +710,8 @@ small { font-size: var(--text-xs); }
   .ed-row { grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr); }
   .ed-row .ed-rate { grid-column: 1 / -1; }
 }
+.ed-board { opacity: 0.85; pointer-events: none; }
+.ed-mid { fill: var(--color-paper); stroke: var(--color-rule); stroke-width: 2; }
+.ed-edge { stroke: var(--color-accent-deep); stroke-width: 6; stroke-dasharray: 10 8; fill: none; }
+.ed-edge.is-sel { stroke: var(--color-focus); stroke-dasharray: none; stroke-width: 4; opacity: 0.6; }
+.ed-edge.is-changed { stroke: var(--color-accent-3); }
