@@ -715,3 +715,12 @@ small { font-size: var(--text-xs); }
 .ed-edge { stroke: var(--color-accent-deep); stroke-width: 6; stroke-dasharray: 10 8; fill: none; }
 .ed-edge.is-sel { stroke: var(--color-focus); stroke-dasharray: none; stroke-width: 4; opacity: 0.6; }
 .ed-edge.is-changed { stroke: var(--color-accent-3); }
+.ed-squares { pointer-events: none; }
+.ed-squares.is-active { pointer-events: auto; cursor: crosshair; }
+.ed-squares .sq.is-fixed .sq-c { stroke: var(--color-ink); stroke-width: 3; }
+.ed-star { font-size: 12px; fill: var(--color-paper); }
+.ed-pal { display: flex; gap: 6px; flex-wrap: wrap; }
+.ed-pal-b { min-height: 40px; padding: 0 12px; border-radius: var(--radius-pill); border: 3px solid transparent; font-weight: 800; color: var(--color-paper); }
+.ed-pal-b.is-on { border-color: var(--color-ink); }
+.pal-blue { background: var(--sq-blue); } .pal-red { background: var(--sq-red); }
+.pal-yellow { background: var(--sq-yellow); color: var(--color-ink); } .pal-event { background: var(--sq-event); }

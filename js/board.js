@@ -153,6 +153,8 @@
     links.forEach((l) => { const a = byId[l.a], b = byId[l.b]; l.pts = [[a.x, a.y]].concat((l.via || []).map((v) => [v.x, v.y]), [[b.x, b.y]]); });
     const live = nodes.filter((n) => !n.gone);
     assignTypes(live, rnd);
+    const fixed = (A.OVERRIDES && A.OVERRIDES.squares) || {};
+    live.forEach((n) => { const t = fixed[n.cx + ',' + n.cy]; if (n.type !== 'station' && (t === 'blue' || t === 'red' || t === 'yellow' || t === 'event')) n.type = t; });
     return { nodes: live, byId, edges, links };
   }
 

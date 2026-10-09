@@ -3,6 +3,7 @@
  * edges : [[駅A, 駅B, オプション], ...]      マップエディターで変えた路線のつながり
  * props : { 駅ID: [[名前, アイコン, 価格, 名物度], ...] }  物件エディターで変えた物件
  * meta  : { 駅ID: { name, region, desc } }  駅の名前・地域・説明の書きかえ
+ * squares: { "cx,cy": 'blue'|'red'|'yellow'|'event' }  マスの種類を手で固定したもの（マスのグリッド位置がキー）
  * extra : [{ id, name, region, lon, lat, desc }]  エディターで足した駅
  * stations.js のあと、data.js より前に読みこまれ、駅の元データ（RAW_STATIONS）に反映する。 */
 (function (root) {
@@ -14,8 +15,9 @@
   }
   function save(o) { try { root.localStorage.setItem(KEY, JSON.stringify(o)); return true; } catch (e) { return false; } }
   function clear() { try { root.localStorage.removeItem(KEY); } catch (e) { /* 無視 */ } }
-  const OV = Object.assign({ pos: {}, edges: null, props: {}, meta: {}, extra: [] }, load());
+  const OV = Object.assign({ pos: {}, edges: null, props: {}, meta: {}, extra: [], squares: {} }, load());
   if (!Array.isArray(OV.extra)) OV.extra = [];
+  if (!OV.squares || typeof OV.squares !== 'object') OV.squares = {};
   if (!OV.meta || typeof OV.meta !== 'object') OV.meta = {};
   A.OVERRIDES = OV;
   A.Overrides = { KEY, load, save, clear };

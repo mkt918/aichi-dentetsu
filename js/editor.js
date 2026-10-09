@@ -27,7 +27,7 @@
     const edges = (o.edges && o.edges.length ? o.edges : A.EDGES).map((e) => [e[0], e[1], clone(e[2] || { kinds: ['rail'] })]);
     const props = {};
     A.STATIONS.forEach((s) => { props[s.id] = (o.props && o.props[s.id] ? o.props[s.id] : s.props.map((p) => [p.name, p.icon, p.price, p.fame])).map((r) => r.slice()); });
-    return { pos, edges, props, meta: clone(o.meta || {}), extra: clone(o.extra || []), propsTouched: Object.assign({}, ...Object.keys(o.props || {}).map((k) => ({ [k]: true }))) };
+    return { pos, edges, props, squares: clone(o.squares || {}), meta: clone(o.meta || {}), extra: clone(o.extra || []), propsTouched: Object.assign({}, ...Object.keys(o.props || {}).map((k) => ({ [k]: true }))) };
   }
   const stationDef = (id) => A.STATIONS.find((s) => s.id === id) || ed.W.extra.find((x) => x.id === id);
   const allIds = () => A.STATIONS.map((s) => s.id).concat(ed.W.extra.filter((x) => !A.STATIONS.some((s) => s.id === x.id)).map((x) => x.id));
@@ -36,7 +36,7 @@
   const descOf = (id) => { const m = ed.W.meta[id]; if (m && m.desc != null) return m.desc; const d = stationDef(id); return d ? d.desc : ''; };
   const setMeta = (id, k, v) => { ed.W.meta[id] = Object.assign({}, ed.W.meta[id], { [k]: v }); markDirty(); };
   function markDirty() { ed.dirty = true; const b = $('#ed-save'); if (b) b.classList.add('is-dirty'); }
-  function snapshot() { return JSON.stringify({ pos: ed.W.pos, edges: ed.W.edges, extra: ed.W.extra, props: ed.W.props, meta: ed.W.meta }); }
+  function snapshot() { return JSON.stringify({ pos: ed.W.pos, edges: ed.W.edges, extra: ed.W.extra, props: ed.W.props, meta: ed.W.meta, squares: ed.W.squares }); }
   function pushUndo() { ed.undo.push(snapshot()); if (ed.undo.length > 60) ed.undo.shift(); ed.redo = []; }
   function restore(json) { const o = JSON.parse(json); Object.assign(ed.W, o); if (ed.sel && !allIds().includes(ed.sel)) ed.sel = null; markDirty(); }
 
@@ -77,7 +77,7 @@
     if (p.lost.length) { UI.alert('つながっていない駅があります', '名古屋から行けない駅: ' + esc(p.lost.map(nameOf).join('、')) + '<br>線路をつなぎ直してから保存してください。'); return false; }
     if (p.noProp.length) { UI.alert('物件のない駅があります', esc(p.noProp.map(nameOf).join('、')) + '<br>物件を1つ以上入れてください。'); return false; }
     if (p.dupName.length) { UI.alert('物件の名前がかぶっています', esc(p.dupName.map(([n, s]) => '「' + n + '」(' + s.map(nameOf).join('・') + ')').join('、')) + '<br>ちがう名前にしてください。'); return false; }
-    const W = ed.W, out = { pos: {}, edges: W.edges, props: {}, meta: W.meta, extra: W.extra };
+    const W = ed.W, out = { pos: {}, edges: W.edges, props: {}, meta: W.meta, extra: W.extra, squares: W.squares };
     allIds().forEach((id) => {
       const d = A.STATIONS.find((s) => s.id === id);
       const defPos = d ? d.def : null;
@@ -145,7 +145,7 @@
 
     const kindDef = () => KINDS.find((k) => k[0] === ed.kind);
     function setMsg() {
-      msg.textContent = ed.mode === 'move'
+      msg.textContent = ed.mode === 'square' ? '色をえらんで、マスをタッチ（なぞってもぬれます）。ぬったマスはゲームでも固定され、盤面を作り直しても変わりません。いま: ' + counts() : ed.mode === 'move'
         ? '下に敷いた道は、いまのゲームの盤面です。駅をドラッグするとマスにそろって動き、変えた道は橙の線で出ます（保存してゲームにもどると、盤面に引き直されます）。駅をタッチすると右に情報が出ます。何もない所のドラッグで地図が動きます。'
         : (ed.pick ? '「' + nameOf(ed.pick) + '」とつなぐ駅をタッチしてください（すでにつながっていれば切れます）。種類: ' + kindDef()[1] : '1つ目の駅をタッチして、つぎに2つ目の駅をタッチします。上の「種類」で、つなぐ道の種類をえらべます。');
     }
@@ -155,8 +155,12 @@
       const ksel = h('select', { 'aria-label': '道の種類' });
       KINDS.forEach(([k, t]) => { const o = h('option', { value: k }, t); if (k === ed.kind) o.selected = true; ksel.appendChild(o); });
       ksel.addEventListener('change', () => { ed.kind = ksel.value; setMsg(); });
-      bar.append(modeBtn('move', '駅を動かす'), modeBtn('edge', '道をつなぐ・切る'),
+      const SQ = [['blue', '＋ 青マス'], ['red', '− 赤マス'], ['yellow', 'カード'], ['event', 'イベント']];
+      bar.append(modeBtn('move', '駅を動かす'), modeBtn('edge', '道をつなぐ・切る'), modeBtn('square', 'マスをぬる'),
         ed.mode === 'edge' ? h('label.ed-kind', '種類 ', ksel) : null,
+        ed.mode === 'square' ? h('div.ed-pal', SQ.map(([k, t]) => h('button.ed-pal-b.pal-' + k + (ed.paint === k ? '.is-on' : ''), { type: 'button', onclick: () => { ed.paint = k; refreshBar(); setMsg(); } }, t))) : null,
+        ed.mode === 'square' ? h('button.btn.btn--sm.btn--pear.btn--soft', { type: 'button', onclick: lockAll }, '全マスをいまの種類で固定') : null,
+        ed.mode === 'square' ? h('button.btn.btn--sm.btn--outline', { type: 'button', onclick: () => { pushUndo(); W.squares = {}; markDirty(); redraw(); } }, '固定をすべて解除') : null,
         h('button.btn.btn--sm.btn--mint.btn--soft', { type: 'button', onclick: addStation }, '＋ 駅を足す'),
         h('button.btn.btn--sm.btn--outline', { type: 'button', disabled: !ed.undo.length, onclick: () => { ed.redo.push(snapshot()); restore(ed.undo.pop()); redraw(); } }, '↶ もどす'),
         h('button.btn.btn--sm.btn--outline', { type: 'button', disabled: !ed.redo.length, onclick: () => { ed.undo.push(snapshot()); restore(ed.redo.pop()); redraw(); } }, '↷ やりなおす'),
@@ -182,6 +186,7 @@
       });
       B.nodes.forEach((n) => { if (n.type !== 'station') gB.appendChild(sv('rect', { x: n.x - 7, y: n.y - 7, width: 14, height: 14, rx: 3, class: 'ed-mid' })); });
       svg.insertBefore(gB, gE);
+      drawSquares();
       // 変えた道（つなぎ直した・動かした駅の道）と、選んだ駅の道だけを、まっすぐな線で重ねる
       const orig = new Set(A.EDGES.map((e) => (e[0] < e[1] ? e[0] + '|' + e[1] : e[1] + '|' + e[0])));
       const moved = (id) => { const s = A.STATIONS.find((x) => x.id === id); return !s || s.x !== W.pos[id][0] || s.y !== W.pos[id][1]; };
@@ -244,6 +249,50 @@
         }
         ed.pick = null; redraw();
       });
+    }
+
+    ed.paint = ed.paint || 'red';
+    const typeOf = (n) => W.squares[n.cx + ',' + n.cy] || n.type;
+    const counts = () => { const c = { blue: 0, red: 0, yellow: 0, event: 0 }; A.Board.nodes.forEach((n) => { if (n.type !== 'station') c[typeOf(n)]++; }); return '青' + c.blue + ' 赤' + c.red + ' カード' + c.yellow + ' イベント' + c.event; };
+    function drawSquares() {
+      const gQ = sv('g', { class: 'ed-squares' + (ed.mode === 'square' ? ' is-active' : '') });
+      A.Board.nodes.forEach((n) => {
+        if (n.type === 'station') return;
+        const t = typeOf(n), key = n.cx + ',' + n.cy;
+        const g = sv('g', { class: 'sq sq-' + t + (W.squares[key] ? ' is-fixed' : ''), transform: 'translate(' + n.x + ' ' + n.y + ') scale(' + A.SQUARE_SCALE.toFixed(3) + ')', 'data-key': key });
+        g.appendChild(sv('rect', { x: -9.5, y: -9.5, width: 19, height: 19, rx: 3.5, class: 'sq-c' }));
+        const gl = t === 'blue' ? 'M-4.5 0h9M0 -4.5v9' : t === 'red' ? 'M-4.5 0h9' : null;
+        if (gl) g.appendChild(sv('path', { d: gl, class: 'sq-g' }));
+        else if (t === 'yellow') g.appendChild(sv('rect', { x: -3.5, y: -4.6, width: 7, height: 9.2, rx: 1.6, class: 'sq-card' }));
+        else { const tx = sv('text', { 'text-anchor': 'middle', y: 4, class: 'ed-star' }); tx.textContent = '★'; g.appendChild(tx); }
+        gQ.appendChild(g);
+      });
+      svg.appendChild(gQ);
+      let painting = false, snap = null;
+      const paintAt = (cx, cy) => {
+        const el = document.elementFromPoint(cx, cy), g = el && el.closest ? el.closest('g.sq') : null;
+        if (!g || !gQ.contains(g)) return;
+        const key = g.getAttribute('data-key');
+        if (W.squares[key] === ed.paint) return;
+        W.squares[key] = ed.paint;
+        g.setAttribute('class', 'sq sq-' + ed.paint + ' is-fixed');
+        g.querySelectorAll('path,text,rect:not(.sq-c)').forEach((x) => x.remove());
+        if (ed.paint === 'blue' || ed.paint === 'red') g.appendChild(sv('path', { d: ed.paint === 'blue' ? 'M-4.5 0h9M0 -4.5v9' : 'M-4.5 0h9', class: 'sq-g' }));
+        else if (ed.paint === 'yellow') g.appendChild(sv('rect', { x: -3.5, y: -4.6, width: 7, height: 9.2, rx: 1.6, class: 'sq-card' }));
+        else { const tx = sv('text', { 'text-anchor': 'middle', y: 4, class: 'ed-star' }); tx.textContent = '★'; g.appendChild(tx); }
+      };
+      gQ.addEventListener('pointerdown', (ev) => {
+        if (ed.mode !== 'square') return;
+        ev.stopPropagation(); snap = snapshot(); painting = true; gQ.setPointerCapture(ev.pointerId); paintAt(ev.clientX, ev.clientY);
+      });
+      gQ.addEventListener('pointermove', (ev) => { if (painting) paintAt(ev.clientX, ev.clientY); });
+      const end = () => { if (!painting) return; painting = false; if (snap !== snapshot()) { ed.undo.push(snap); ed.redo = []; markDirty(); } setMsg(); };
+      gQ.addEventListener('pointerup', end); gQ.addEventListener('pointercancel', end);
+    }
+    function lockAll() {
+      pushUndo();
+      A.Board.nodes.forEach((n) => { if (n.type !== 'station') W.squares[n.cx + ',' + n.cy] = typeOf(n); });
+      markDirty(); redraw();
     }
 
     function addStation() {
