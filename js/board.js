@@ -15,20 +15,8 @@
     };
   }
 
-  const SQUARE_WEIGHTS = [['blue', 46], ['red', 24], ['yellow', 20], ['event', 10]];
-  const SPACING = 60; // 途中マスの間隔の目安
-
-  function pickType(rnd, prev2, prev1) {
-    for (let tries = 0; tries < 12; tries++) {
-      let r = rnd() * 100;
-      let t = 'blue';
-      for (const [name, w] of SQUARE_WEIGHTS) { if (r < w) { t = name; break; } r -= w; }
-      if (t === prev1 && t !== 'blue') continue;      // 赤・黄・紫の連続は避ける
-      if (t === 'blue' && prev1 === 'blue' && prev2 === 'blue') continue; // 青3連続も避ける
-      return t;
-    }
-    return 'blue';
-  }
+  const SPACING = 60; // 途中マスの間隔（画面上の px）。区間の長さに比例して、マスの数が決まる
+  const MAX_SQ = 20;  // 1つの区間にならぶ途中マスの上限
 
   function bezierPoints(a, b, bend, count) {
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
@@ -44,6 +32,47 @@
     return { pts, c: { x: cx, y: cy } };
   }
 
+  /** 区間が、ほかの駅の上を通らないように曲げ方を選ぶ（まっすぐで足りなければ少しずつ曲げる） */
+  function pickBend(a, b, stations) {
+    const others = stations.filter((s) => s !== a && s !== b);
+    const need = 18 * A.K; // 駅からこれだけは離す
+    let best = { bend: 0, d: -1 };
+    for (const bend of [0, 0.06, -0.06, 0.12, -0.12, 0.2, -0.2]) {
+      const { pts } = bezierPoints(a, b, bend, 40);
+      let d = Infinity;
+      for (const s of others) for (const p of pts) d = Math.min(d, Math.hypot(p.x - s.x, p.y - s.y));
+      if (d >= need) return bend;
+      if (d > best.d) best = { bend, d };
+    }
+    return best.bend;
+  }
+
+  /** 途中マスの種類を、決めた数どおりに配る。黄と紫は数を固定し、赤と青は比率を保つ */
+  function assignTypes(nodes, rnd) {
+    const mids = nodes.filter((n) => n.type === 'mid');
+    const Q = A.SQUARE_QUOTA;
+    const rest = Math.max(0, mids.length - Q.yellow - Q.event);
+    const red = Math.round((rest * Q.red) / (Q.red + Q.blue));
+    const bag = [];
+    for (let i = 0; i < Q.yellow; i++) bag.push('yellow');
+    for (let i = 0; i < Q.event; i++) bag.push('event');
+    for (let i = 0; i < red; i++) bag.push('red');
+    while (bag.length < mids.length) bag.push('blue');
+    bag.length = mids.length;
+    for (let i = bag.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      const t = bag[i]; bag[i] = bag[j]; bag[j] = t;
+    }
+    // 黄・紫・赤が2つ続かないように、後ろの青と入れ替える
+    for (let i = 1; i < bag.length; i++) {
+      if (bag[i] === 'blue' || bag[i] !== bag[i - 1]) continue;
+      for (let k = i + 1; k < bag.length; k++) {
+        if (bag[k] === 'blue') { const t = bag[i]; bag[i] = bag[k]; bag[k] = t; break; }
+      }
+    }
+    mids.forEach((n, i) => { n.type = bag[i]; });
+  }
+
   function build() {
     const rnd = mulberry32(20260);
     const nodes = [];
@@ -54,6 +83,7 @@
       const n = { id: s.id, type: 'station', x: s.x, y: s.y, adj: [], station: s.id };
       nodes.push(n); byId[n.id] = n;
     });
+    const stationNodes = nodes.slice();
 
     let qn = 0;
     A.EDGES.forEach((e, ei) => {
@@ -61,27 +91,33 @@
       const a = byId[aId], b = byId[bId];
       if (!a || !b) throw new Error('未定義の駅: ' + aId + ' / ' + bId);
       const len = Math.hypot(b.x - a.x, b.y - a.y);
-      const bend = opt.bend || 0;
-      const count = typeof opt.n === 'number' ? opt.n : Math.max(0, Math.min(3, Math.round(len / SPACING) - 1));
+      const bend = opt.bend != null ? opt.bend : pickBend(a, b, stationNodes);
+      const count = typeof opt.n === 'number' ? opt.n : Math.max(0, Math.min(MAX_SQ, Math.round(len / SPACING) - 1));
 
       // 曲線を細かく刻んで、弧長で等分した位置に途中マスを置く
-      const { pts, c } = bezierPoints(a, b, bend, 48);
+      const { pts, c } = bezierPoints(a, b, bend, 64);
       const cum = [0];
       for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
       const total = cum[cum.length - 1];
       const chain = [a];
-      let p2 = null, p1 = null;
+      // 弧長で s の位置を求める
+      const at = (s) => {
+        let j = 1;
+        while (j < cum.length - 1 && cum[j] < s) j++;
+        const f = (s - cum[j - 1]) / ((cum[j] - cum[j - 1]) || 1);
+        return { x: pts[j - 1].x + (pts[j].x - pts[j - 1].x) * f, y: pts[j - 1].y + (pts[j].y - pts[j - 1].y) * f };
+      };
+      // ほかの駅・マスから離れているか（近すぎると、少し前後にずらす）
+      const clear = (p) => nodes.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= (q.type === 'station' ? 34 : 28));
       for (let k = 1; k <= count; k++) {
         const target = (total * k) / (count + 1);
-        let j = 1;
-        while (j < cum.length - 1 && cum[j] < target) j++;
-        const f = (target - cum[j - 1]) / ((cum[j] - cum[j - 1]) || 1);
-        const x = pts[j - 1].x + (pts[j].x - pts[j - 1].x) * f;
-        const y = pts[j - 1].y + (pts[j].y - pts[j - 1].y) * f;
-        const type = pickType(rnd, p2, p1);
-        const n = { id: 'q' + qn++, type, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, adj: [], edge: ei };
+        let p = at(target);
+        for (const off of [6, -6, 12, -12, 18, -18, 24, -24, 30, -30]) {
+          if (clear(p)) break;
+          p = at(Math.min(total, Math.max(0, target + off)));
+        }
+        const n = { id: 'q' + qn++, type: 'mid', x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, adj: [], edge: ei };
         nodes.push(n); byId[n.id] = n; chain.push(n);
-        p2 = p1; p1 = type;
       }
       chain.push(b);
       for (let i = 0; i < chain.length - 1; i++) {
@@ -95,6 +131,7 @@
       });
     });
 
+    assignTypes(nodes, rnd);
     return { nodes, byId, edges };
   }
 

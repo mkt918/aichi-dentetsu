@@ -5,7 +5,7 @@
   const A = (root.Aichi = root.Aichi || {});
 
   /** 世界の拡大率。デザイン空間(1200x1000)を何倍にして使うか */
-  const K = 1.7;
+  const K = 3.6;
   /** 経度・緯度 → デザイン空間（愛知県がちょうど入る投影） */
   const proj = (lon, lat) => [(lon - 136.6) * 900, (35.45 - lat) * 1050];
 
@@ -28,43 +28,73 @@
     props: r.items.map((it, i) => ({ id: r.id + '-' + i, station: r.id, name: it[0], icon: it[1], price: it[2], fame: it[3], rate: rateFor(it[2], it[3]) })),
   }));
 
-  // ---- 路線: [駅A, 駅B, オプション] ----
-  // opt: bend=曲がり具合 / n=途中マス数の指定 / sea=海路 / bridge=橋
-  const EDGES = [
-    // 名古屋の地下鉄・JR・名鉄
-    ['nagoya', 'fushimi'], ['fushimi', 'sakae'], ['sakae', 'imaike'], ['imaike', 'kakuozan'], ['kakuozan', 'nagoyadaigaku'],
-    ['nagoyadaigaku', 'higashiyama'], ['higashiyama', 'hoshigaoka'], ['hoshigaoka', 'fujigaoka'],
-    ['nagoya', 'nakamura', { n: 0 }], ['nagoya', 'kanayama', { n: 2 }], ['kanayama', 'osu'], ['osu', 'sakae'], ['osu', 'fushimi'], ['osu', 'tsurumai'],
-    ['tsurumai', 'yagoto'], ['yagoto', 'nagoyadaigaku'], ['yagoto', 'mizuho'], ['mizuho', 'atsuta'], ['kanayama', 'atsuta'],
-    ['kanayama', 'nagoyakou'], ['nagoyakou', 'kinjo'], ['sakae', 'nagoyajo'], ['nagoyajo', 'tokugawa'], ['tokugawa', 'ozone'],
-    ['tokugawa', 'nagoyadome'], ['nagoyadome', 'imaike'], ['ozone', 'moriyama'], ['ozone', 'kasugai'],
-    ['atsuta', 'arimatsu'], ['atsuta', 'tokai'],
-    // 尾張
-    ['nagoya', 'kitanagoya'], ['kitanagoya', 'iwakura'], ['iwakura', 'konan'], ['konan', 'inuyama'], ['inuyama', 'inuyamayuen'],
-    ['inuyama', 'komaki'], ['komaki', 'kasugai'], ['komaki', 'meijimura'], ['inuyamayuen', 'meijimura'],
-    ['kasugai', 'kozoji'], ['kozoji', 'seto'], ['seto', 'moriyama'], ['seto', 'nagakute'], ['nagakute', 'fujigaoka'], ['nagakute', 'toyota', { n: 2 }],
-    ['nagoya', 'kiyosu'], ['kiyosu', 'inazawa'], ['inazawa', 'ichinomiya'], ['ichinomiya', 'kisogawa'], ['ichinomiya', 'konan', { n: 0 }], ['inazawa', 'tsushima'],
-    ['nagoya', 'ama'], ['ama', 'tsushima'], ['tsushima', 'aisai'], ['aisai', 'yatomi'], ['yatomi', 'kinjo'],
-    ['arimatsu', 'toyoake'], ['toyoake', 'chiryu'],
-    // 知多半島
-    ['tokai', 'handa'], ['tokai', 'chita'], ['chita', 'tokoname'], ['tokoname', 'centrair', { bridge: true }], ['tokai', 'obu'], ['obu', 'kariya'],
-    ['obu', 'handa'], ['handa', 'taketoyo'], ['taketoyo', 'kowa'], ['kowa', 'mihama'], ['mihama', 'utsumi'], ['utsumi', 'morozaki'],
-    ['tokoname', 'handa'], ['handa', 'hekinan', { bridge: true }],
-    ['morozaki', 'shinojima', { sea: true, n: 2 }], ['shinojima', 'himaka', { sea: true, n: 1 }], ['himaka', 'irago', { sea: true, n: 3 }],
-    // 西三河
-    ['kariya', 'chiryu'], ['kariya', 'anjo'], ['chiryu', 'okazaki'], ['anjo', 'okazaki'], ['anjo', 'nishio'], ['kariya', 'takahama'], ['takahama', 'hekinan'],
-    ['nishio', 'isshiki'], ['isshiki', 'kira'], ['isshiki', 'sakushima', { sea: true, n: 2 }], ['kira', 'katahara'], ['katahara', 'nishiura'], ['nishiura', 'gamagori'],
-    ['okazaki', 'kota'], ['kota', 'gamagori'], ['okazaki', 'hatcho'], ['nishio', 'kota'], ['okazaki', 'daijuji'], ['daijuji', 'matsudaira'], ['matsudaira', 'toyota'],
-    ['chiryu', 'toyota'], ['toyota', 'sanage'], ['toyota', 'obara'], ['obara', 'asuke'], ['toyota', 'asuke'], ['asuke', 'asahi'], ['asahi', 'inabu'],
-    ['hatcho', 'goyu'],
-    // 東三河
-    ['gamagori', 'mitani'], ['mitani', 'kozakai'], ['kozakai', 'toyohashi'], ['goyu', 'toyokawa'], ['toyokawa', 'toyohashi'],
-    ['toyokawa', 'shinshiro'], ['toyohashi', 'yoshidajo'], ['yoshidajo', 'nonhoi'], ['toyohashi', 'futagawa'], ['toyohashi', 'tahara', { bridge: true }],
-    ['shinshiro', 'yuya'], ['yuya', 'horaiji'], ['horaiji', 'toei'], ['toei', 'shitara'], ['shitara', 'toyone'], ['shitara', 'inabu'],
-    ['shinshiro', 'tsukude'], ['tsukude', 'asuke'],
-    // 渥美半島
-    ['tahara', 'fukue'], ['fukue', 'akabane'], ['akabane', 'koiji'], ['koiji', 'irago'],
+  // ---- 路線: 駅の並び（隣どうしを線路でつなぐ）。実在の路線をもとに、わかりやすく作り直したもの ----
+  // 1本の路線は、駅を端から順に並べたもの。同じ区間が複数の路線にあれば1本にまとめる。
+  const LINES = [
+    ['東山線', ['fujigaoka', 'hoshigaoka', 'higashiyama', 'nagoyadaigaku', 'kakuozan', 'imaike', 'sakae', 'fushimi', 'nagoya']],
+    ['名城線', ['sakae', 'nagoyajo', 'tokugawa', 'nagoyadome', 'ozone', 'imaike', 'sakae']],
+    ['鶴舞線', ['kanayama', 'osu', 'tsurumai', 'yagoto', 'mizuho']],
+    ['桜通線', ['nakamura', 'nagoya']],
+    ['名港線', ['kanayama', 'nagoyakou', 'kinjo']],
+    ['あおなみ線', ['kinjo', 'yatomi']],
+    ['JR東海道線', ['nagoya', 'kanayama', 'atsuta', 'obu', 'kariya', 'anjo', 'okazaki', 'goyu', 'kozakai', 'toyohashi']],
+    ['JR中央線', ['ozone', 'kasugai', 'kozoji']],
+    ['JR武豊線', ['obu', 'handa', 'taketoyo']],
+    ['JR飯田線', ['toyohashi', 'toyokawa', 'shinshiro', 'yuya', 'horaiji', 'toei', 'shitara', 'toyone']],
+    ['名鉄瀬戸線', ['imaike', 'ozone', 'moriyama', 'seto']],
+    ['名鉄名古屋本線', ['nagoya', 'kanayama', 'atsuta', 'arimatsu', 'toyoake', 'chiryu', 'anjo', 'nishio', 'isshiki', 'kira', 'gamagori']],
+    ['名鉄常滑線', ['atsuta', 'tokai', 'obu', 'handa', 'tokoname']],
+    ['名鉄河和線', ['handa', 'kowa']],
+    ['知多半島線', ['kowa', 'mihama', 'utsumi', 'morozaki']],
+    ['名鉄知多線', ['tokai', 'chita', 'tokoname']],
+    ['リニモ', ['fujigaoka', 'nagakute', 'toyota']],
+    ['豊田線', ['toyota', 'sanage', 'obara', 'asuke', 'asahi', 'inabu']],
+    ['名鉄犬山線', ['nagoya', 'kitanagoya', 'iwakura', 'konan', 'inuyama', 'inuyamayuen']],
+    ['小牧線', ['inuyama', 'komaki', 'kasugai']],
+    ['明治村線', ['inuyama', 'meijimura', 'komaki']],
+    ['尾西線', ['nagoya', 'ama', 'inazawa', 'ichinomiya', 'kisogawa']],
+    ['清洲線', ['nagoya', 'kiyosu', 'inazawa']],
+    ['津島線', ['inazawa', 'tsushima', 'aisai', 'yatomi']],
+    ['碧南線', ['kariya', 'takahama', 'hekinan']],
+    ['岡崎線', ['okazaki', 'daijuji', 'matsudaira', 'toyota']],
+    ['幸田線', ['kira', 'kota', 'okazaki']],
+    ['八丁線', ['okazaki', 'hatcho']],
+    ['西浦線', ['gamagori', 'katahara', 'nishiura']],
+    ['三谷線', ['gamagori', 'mitani', 'kozakai']],
+    ['豊橋線', ['toyohashi', 'yoshidajo', 'nonhoi']],
+    ['二川線', ['toyohashi', 'futagawa']],
+    ['御油線', ['goyu', 'toyokawa']],
+    ['新城線', ['shinshiro', 'tsukude', 'asuke']],
+    ['渥美線', ['tahara', 'fukue', 'akabane', 'koiji', 'irago']],
   ];
+
+  // 線路の並びでは結べないもの（橋・海路）。opt: bridge=橋 / sea=フェリー / n=途中マス数の指定
+  const SPECIAL = [
+    ['tokoname', 'centrair', { bridge: true }],
+    ['handa', 'hekinan', { bridge: true }],
+    ['toyohashi', 'tahara', { bridge: true }],
+    ['morozaki', 'shinojima', { sea: true, n: 2 }],
+    ['shinojima', 'himaka', { sea: true, n: 1 }],
+    ['himaka', 'irago', { sea: true, n: 3 }],
+    ['isshiki', 'sakushima', { sea: true, n: 2 }],
+  ];
+
+  /** 路線と特別な区間から、隣どうしの区間の一覧を作る（[駅A, 駅B, オプション]） */
+  const EDGES = (() => {
+    const seen = new Set(), out = [];
+    const add = (a, b, opt) => {
+      const key = [a, b].sort().join('|');
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(opt ? [a, b, opt] : [a, b]);
+    };
+    LINES.forEach(([, stops]) => { for (let i = 0; i < stops.length - 1; i++) add(stops[i], stops[i + 1]); });
+    SPECIAL.forEach(([a, b, opt]) => add(a, b, opt));
+    return out;
+  })();
+
+  // ---- 途中マスの数（種類ごと）。赤と青は、前の版の3倍。黄と紫は前の版と同じ数 ----
+  const SQUARE_QUOTA = { yellow: 38, event: 19, red: 132, blue: 231 }; // 合計420
 
   // ---- カード ----
   // kind: dice(サイコロ変更) / warp / target(相手指定) / self / money / sale / buyout / stay
@@ -127,5 +157,5 @@
     [58, 380], [58, 285], [85, 200], [125, 130], [175, 80],
   ];
 
-  Object.assign(A, { K, proj, rateFor, REGION, STATIONS, EDGES, CARDS, HAND_LIMIT, EVENTS, CHARS, OUTLINE_REAL });
+  Object.assign(A, { K, proj, rateFor, REGION, STATIONS, LINES, EDGES, SQUARE_QUOTA, CARDS, HAND_LIMIT, EVENTS, CHARS, OUTLINE_REAL });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

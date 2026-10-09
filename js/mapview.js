@@ -9,7 +9,7 @@
   const minX = Math.min.apply(null, bx), maxX = Math.max.apply(null, bx), minY = Math.min.apply(null, by), maxY = Math.max.apply(null, by);
   const WORLD = { x0: minX - 160, y0: minY - 160, x1: maxX + 160, y1: maxY + 160 };
   const FIT = { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: maxX - minX + 200, h: maxY - minY + 200 };
-  const ZOOM_MIN = 230, ZOOM_MAX = 3200;
+  const ZOOM_MIN = 230, ZOOM_MAX = Math.max(3200, (maxX - minX) * 1.5);
 
   function svgEl(tag, attrs, html) {
     const e = document.createElementNS(NS, tag);

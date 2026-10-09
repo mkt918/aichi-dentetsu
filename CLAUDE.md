@@ -8,7 +8,7 @@
 - スクリプトは **classic script**（ES Modules にしない）。`file://` で `index.html` を開いて動くことが前提。各ファイルは `Aichi` 名前空間（`globalThis.Aichi`）に公開する。読みこみ順は `stations → data → layout → board → logic → ai → art → audio → ui → mapview → app`。
 - 色・余白・角丸は `css/tokens.css` の変数のみ。SVG の中でも `var(--…)` を使い、色のベタ書きをしない。
 - ゲームの状態（`state`）は JSON にできる値だけで持つ（セーブのため）。関数・DOM・Map/Set を入れない。セーブの形を変えたら `app.js` の `SAVE_KEY` の版を上げる。
-- 駅の画面座標は `layout.js` が自動で決める（`stations.js` には経度・緯度だけ書く）。盤面や駅を変えたら必ず `node test/validate-map.js`、ルール/AIを変えたら `node test/simulate.js 200` を通す。
+- 駅の画面座標は `layout.js` が自動で決める（`stations.js` には経度・緯度だけ書く）。路線は `data.js` の `LINES`（駅の並び）と `SPECIAL`（橋・海路）で書き、隣どうしの区間を `EDGES` が作る。途中マスの総数は `SQUARE_QUOTA` と地図の大きさ `K` で決まる（`K` を変えると途中マスの数も変わるので、変えたら `validate-map` を見る）。盤面や駅を変えたら必ず `node test/validate-map.js`、ルール/AIを変えたら `node test/simulate.js 200` を通す。
 - 物件の利回りは手で書かず、価格と名物度（隠しデータ）から `rateFor` で決める（安いほど高く、高いほど低く）。
 
 ## 確認方法

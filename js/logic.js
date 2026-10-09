@@ -195,7 +195,9 @@
   function pickDest(s) {
     const cands = A.STATIONS.filter((st) => st.id !== s.dest && !s.players.some((p) => p.pos === st.id));
     const minD = (st) => Math.min.apply(null, s.players.map((p) => B.distFrom(st.id)[p.pos]));
-    let pool = cands.filter((st) => minD(st) >= 9);
+    // 目的地は、いちばん近い人から 9〜30 マス先の駅をえらぶ（マスが多いぶん、遠すぎると遊びのテンポが落ちる）
+    let pool = cands.filter((st) => minD(st) >= 9 && minD(st) <= 30);
+    if (!pool.length) pool = cands.filter((st) => minD(st) >= 9);
     if (!pool.length) pool = cands;
     const st = pool[rint(s, pool.length)];
     const avg = s.players.reduce((a, p) => a + B.distFrom(st.id)[p.pos], 0) / s.players.length;

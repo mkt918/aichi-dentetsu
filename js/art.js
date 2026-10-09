@@ -150,23 +150,28 @@
   }
 
   function mapBackground() {
-    const K = A.K, B = A.Board, W = (p) => A.warpPt(p);
-    const O = A.OUTLINE_BASE;            // ゆがませたあとの県の輪郭（K倍する前の空間）
+    const K = A.K, B = A.Board;
+    // 地図が大きくなった分、文字と線の太さだけ f 倍にする（木・家・キャラの大きさは変えない）
+    const f = K / 1.7;
+    const O = A.OUTLINE;                                       // 画面の座標（px）の県の輪郭
+    const P = (p) => [p[0] * K, p[1] * K];
+    const W = (p) => { const q = A.warpPt(p); return [q[0] * K, q[1] * K]; }; // 元の座標 → ゆがみ → px
     const rnd = B.mulberry32(4242);
+    const xs = O.map((p) => p[0]), ys = O.map((p) => p[1]);
+    const x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
 
     // 隣の県（岐阜・長野・静岡・三重）。愛知の外側をぐるっと囲む
-    const real = A.OUTLINE_REAL;
-    const border = real.slice(-5).concat(real.slice(0, 15)).map(W);
+    const border = O.slice(-5).concat(O.slice(0, 15));
     const mie = [[240, 1030], [180, 1000], [120, 985], [40, 960], [-30, 910], [-80, 850], [-60, 780], [-20, 710], [10, 640], [30, 570], [50, 500], [70, 455]].map(W);
     const shizuoka = [[1000, 812], [1120, 826], [1500, 850]].map(W);
-    const far = [[1500, -300], [-300, -300], [-300, 1100]];
+    const far = [[1500, -300], [-300, -300], [-300, 1100]].map(P);
     const neighbor = [W([90, 440])].concat(border, shizuoka, far, mie);
     const neighborD = 'M' + neighbor.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + 'Z';
     const landD = smoothPath(O, true);
 
     // 木・山・家のかざり（駅・ラベル・路線をよけて置く）
     const segs = [];
-    B.edges.forEach((e) => { for (let i = 0; i < e.chain.length - 1; i++) { const a = B.byId[e.chain[i]], b = B.byId[e.chain[i + 1]]; segs.push([a.x / K, a.y / K, b.x / K, b.y / K]); } });
+    B.edges.forEach((e) => { for (let i = 0; i < e.chain.length - 1; i++) { const a = B.byId[e.chain[i]], b = B.byId[e.chain[i + 1]]; segs.push([a.x, a.y, b.x, b.y]); } });
     function nearRail(x, y, lim) {
       for (const [ax, ay, bx, by] of segs) {
         const dx = bx - ax, dy = by - ay;
@@ -177,30 +182,29 @@
     }
     function nearStation(x, y) {
       return A.STATIONS.some((s) => {
-        if (Math.hypot(x - s.x / K, y - s.y / K) < 24) return true;
+        if (Math.hypot(x - s.x, y - s.y) < 34 * f) return true;
         const r = B.labels[s.id].rect;
-        return x > r[0] / K - 10 && x < r[2] / K + 10 && y > r[1] / K - 10 && y < r[3] / K + 10;
+        return x > r[0] - 10 && x < r[2] + 10 && y > r[1] - 10 && y < r[3] + 10;
       });
     }
     function distToCoast(x, y) {
       let best = 1e9;
       for (let i = 0; i < O.length; i++) {
-        const [x1, y1] = O[i], [x2, y2] = O[(i + 1) % O.length];
-        const dx = x2 - x1, dy = y2 - y1;
-        const t = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy || 1)));
-        best = Math.min(best, Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy)));
+        const [ax, ay] = O[i], [bx, by] = O[(i + 1) % O.length];
+        const dx = bx - ax, dy = by - ay;
+        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+        best = Math.min(best, Math.hypot(x - (ax + t * dx), y - (ay + t * dy)));
       }
       return best;
     }
-    const xs = O.map((p) => p[0]), ys = O.map((p) => p[1]);
-    const x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    const want = Math.round(190 * f * f);   // 面積に比例して、かざりの数をふやす
     let deco = '';
     const placed = [];
-    for (let k = 0; k < 2500 && placed.length < 190; k++) {
+    for (let k = 0; k < want * 80 && placed.length < want; k++) {
       const x = x0 + rnd() * (x1 - x0), y = y0 + rnd() * (y1 - y0);
-      if (!insidePoly(x, y, O) || distToCoast(x, y) < 16) continue;
-      if (nearStation(x, y) || nearRail(x, y, 18)) continue;
-      if (placed.some((p) => Math.hypot(p[0] - x, p[1] - y) < 30)) continue;
+      if (!insidePoly(x, y, O) || distToCoast(x, y) < 16 * f) continue;
+      if (nearStation(x, y) || nearRail(x, y, 18 * f)) continue;
+      if (placed.some((p) => Math.hypot(p[0] - x, p[1] - y) < 30 * f)) continue;
       placed.push([x, y]);
       const mountainZone = x > x0 + (x1 - x0) * 0.62 && y < y0 + (y1 - y0) * 0.6;
       if (mountainZone) {
@@ -214,44 +218,43 @@
       }
     }
 
-    // 川（木曽川・矢作川・豊川）。実際の位置の点をゆがみの場にそって動かす
+    // 川（木曽川・矢作川・豊川）。元の座標の点を、ゆがみにそって動かす
     const riverPts = [
       [[175, 80], [120, 150], [75, 250], [70, 330], [90, 438]],
       [[880, 262], [800, 310], [720, 350], [650, 400], [600, 470], [595, 530], [560, 600], [500, 670], [450, 720], [430, 748]],
       [[965, 372], [930, 450], [890, 520], [850, 590], [800, 660], [785, 720], [780, 766]],
     ];
-    const rivers = riverPts.map((pts) => `<path d="${smoothPath(pts.map(W), false)}" class="m-river"/>`).join('');
+    const rivers = riverPts.map((pts) => `<path d="${smoothPath(pts.map(W), false)}" class="m-river" style="stroke-width:${8 * f}"/>`).join('');
 
-    // 島（セントレア・日間賀島・篠島・佐久島）
+    // 島（セントレア・日間賀島・篠島・佐久島）は駅の場所に置く
     const islands = A.STATIONS.filter((s) => s.island).map((s) => {
       const big = s.id === 'centrair';
-      return `<ellipse cx="${s.bx}" cy="${s.by}" rx="${big ? 40 : 24}" ry="${big ? 22 : 16}" transform="rotate(${big ? -20 : 12} ${s.bx} ${s.by})" class="m-island"/>`;
+      return `<ellipse cx="${s.x}" cy="${s.y}" rx="${big ? 62 : 40}" ry="${big ? 30 : 24}" transform="rotate(${big ? -20 : 12} ${s.x} ${s.y})" class="m-island" style="stroke-width:${3 * f}"/>`;
     }).join('');
 
-    const boat = (p, s, d) => { const q = W(p); return `<g transform="translate(${q[0].toFixed(0)} ${q[1].toFixed(0)}) scale(${s})"><g class="m-boat" style="animation-delay:${d}s"><path d="M-14 0h28l-5 8h-18z" class="m-hull"/><rect x="-1" y="-16" width="2" height="16" class="m-mast"/><path d="M2 -15 14 -3H2z" class="m-sail"/></g></g>`; };
-    const label = (p, text, size, rot, cls) => { const q = W(p); return `<text x="${q[0].toFixed(0)}" y="${q[1].toFixed(0)}" font-size="${size}" text-anchor="middle" class="${cls}"${rot ? ` transform="rotate(${rot} ${q[0].toFixed(0)} ${q[1].toFixed(0)})"` : ''}>${text}</text>`; };
+    const boat = (p, s, d) => { const q = W(p); return `<g transform="translate(${q[0].toFixed(0)} ${q[1].toFixed(0)}) scale(${(s * f).toFixed(2)})"><g class="m-boat" style="animation-delay:${d}s"><path d="M-14 0h28l-5 8h-18z" class="m-hull"/><rect x="-1" y="-16" width="2" height="16" class="m-mast"/><path d="M2 -15 14 -3H2z" class="m-sail"/></g></g>`; };
+    const label = (p, text, size, rot, cls) => { const q = W(p); return `<text x="${q[0].toFixed(0)}" y="${q[1].toFixed(0)}" font-size="${(size * f).toFixed(0)}" text-anchor="middle" class="${cls}"${rot ? ` transform="rotate(${rot} ${q[0].toFixed(0)} ${q[1].toFixed(0)})"` : ''}>${text}</text>`; };
 
-    return `<g transform="scale(${K})">
+    return `
       <defs>
-        <pattern id="pWave" width="64" height="34" patternUnits="userSpaceOnUse"><path d="M0 17q16-11 32 0t32 0" class="m-wave"/></pattern>
-        <pattern id="pDot" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="5" cy="6" r="1.300" class="m-dot"/><circle cx="16" cy="15" r="1" class="m-dot"/></pattern>
+        <pattern id="pWave" width="${(64 * f).toFixed(1)}" height="${(34 * f).toFixed(1)}" patternUnits="userSpaceOnUse"><path d="M0 ${(17 * f).toFixed(1)}q${(16 * f).toFixed(1)} ${(-11 * f).toFixed(1)} ${(32 * f).toFixed(1)} 0t${(32 * f).toFixed(1)} 0" class="m-wave" style="stroke-width:${(2.2 * f).toFixed(1)}"/></pattern>
+        <pattern id="pDot" width="${(22 * f).toFixed(1)}" height="${(22 * f).toFixed(1)}" patternUnits="userSpaceOnUse"><circle cx="${(5 * f).toFixed(1)}" cy="${(6 * f).toFixed(1)}" r="${(1.3 * f).toFixed(1)}" class="m-dot"/><circle cx="${(16 * f).toFixed(1)}" cy="${(15 * f).toFixed(1)}" r="${f.toFixed(1)}" class="m-dot"/></pattern>
       </defs>
-      <rect x="-700" y="-700" width="3000" height="2800" class="m-sea"/>
-      <rect x="-700" y="-700" width="3000" height="2800" fill="url(#pWave)" opacity=".8"/>
+      <rect x="${(x0 - 3000).toFixed(0)}" y="${(y0 - 3000).toFixed(0)}" width="${(x1 - x0 + 6000).toFixed(0)}" height="${(y1 - y0 + 6000).toFixed(0)}" class="m-sea"/>
+      <rect x="${(x0 - 3000).toFixed(0)}" y="${(y0 - 3000).toFixed(0)}" width="${(x1 - x0 + 6000).toFixed(0)}" height="${(y1 - y0 + 6000).toFixed(0)}" fill="url(#pWave)" opacity=".8"/>
       <path d="${neighborD}" class="m-neighbor"/>
       <path d="${neighborD}" fill="url(#pDot)" opacity=".6"/>
       ${label([520, -40], '岐阜県', 30, 0, 'm-pref')}${label([1020, 60], '長野県', 28, 0, 'm-pref')}
       ${label([-150, 520], '三重県', 30, -90, 'm-pref')}${label([1240, 760], '静岡県', 30, 0, 'm-pref')}
-      <path d="${landD}" class="m-shore"/>
-      <path d="${landD}" class="m-land"/>
+      <path d="${landD}" class="m-shore" style="stroke-width:${(34 * f).toFixed(1)}"/>
+      <path d="${landD}" class="m-land" style="stroke-width:${(3.5 * f).toFixed(1)}"/>
       <path d="${landD}" fill="url(#pDot)"/>
       ${rivers}${islands}
       ${deco}
       ${label([300, 190], '尾 張', 64, 0, 'm-region')}${label([760, 500], '三 河', 76, 0, 'm-region')}
       ${label([255, 745], '知多半島', 34, -82, 'm-region')}${label([500, 893], '渥美半島', 40, -9, 'm-region')}
       ${label([76, 590], '伊勢湾', 24, -90, 'm-sea-label')}${label([500, 800], '三河湾', 24, 0, 'm-sea-label')}${label([700, 958], '太 平 洋', 34, 0, 'm-sea-label')}
-      ${boat([92, 570], 1, 0)}${boat([560, 780], 0.9, -1.4)}${boat([640, 935], 1.1, -0.7)}${boat([860, 884], 0.9, -2.1)}${boat([300, 985], 1, -1)}
-    </g>`;
+      ${boat([92, 570], 1, 0)}${boat([560, 780], 0.9, -1.4)}${boat([640, 935], 1.1, -0.7)}${boat([860, 884], 0.9, -2.1)}${boat([300, 985], 1, -1)}`;
   }
 
   // ---------- タイトルロゴ ----------
