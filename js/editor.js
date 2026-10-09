@@ -11,8 +11,7 @@
   const G = A.GRID;
 
   const KINDS = [
-    ['rail', '鉄道', {}], ['expressway', '高速道路', {}], ['national', '国道', {}], ['pref', '県道', {}],
-    ['bridge', '橋', { bridge: true }], ['sea', '海路', { sea: true }],
+    ['rail', '線路', {}], ['sea', '海路', { sea: true }],
   ];
   const KIND_NAME = {}; KINDS.forEach((k) => { KIND_NAME[k[0]] = k[1]; });
   const ICONS = { castle: 'お城', shrine: '神社・お寺', food: '食べもの', factory: '工場', pottery: '焼きもの', mountain: '山', sea: '海', park: '公園', onsen: '温泉', museum: '博物館・町並み', farm: '農産物', train: '鉄道', tower: 'タワー・ビル', airport: '空港', festival: 'お祭り', fish: '魚', bird: '鳥', leaf: '花・紅葉', craft: '工芸', card: 'カード' };

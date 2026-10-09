@@ -155,14 +155,15 @@
     LINES.forEach(([, stops]) => pairs(stops, (x, y) => add(x, y, null, 'rail')));
     SPECIAL.forEach(([x, y, opt]) => add(x, y, opt, opt.sea ? 'sea' : 'bridge'));
     ROADS.forEach(([, kind, stops]) => pairs(stops, (x, y) => add(x, y, null, kind)));
-    return order.map((e) => [e.a, e.b, Object.assign({}, e.opt, { kinds: Array.from(e.kinds) })]);
+    // 道の種類は「線路」と「海路」の2つだけ（高速・国道・県道・橋も線路として引く）
+    return order.map((e) => [e.a, e.b, Object.assign({}, e.opt, { kinds: e.opt.sea ? ['sea'] : ['rail'] })]);
   })();
   const DEFAULT_EDGES = EDGES.map((e) => e.slice());
   // マップエディターで変えた路線があれば差しかえる（存在しない駅をふくむものは捨てる）
   if (OV.edges && Array.isArray(OV.edges) && OV.edges.length) {
     const ids = new Set(STATIONS.map((s) => s.id));
     const ok = OV.edges.filter((e) => e && ids.has(e[0]) && ids.has(e[1]));
-    if (ok.length) { EDGES.length = 0; ok.forEach((e) => EDGES.push([e[0], e[1], Object.assign({ kinds: ['rail'] }, e[2] || {})])); }
+    if (ok.length) { EDGES.length = 0; ok.forEach((e) => { const o = e[2] || {}; EDGES.push([e[0], e[1], Object.assign({}, o, { kinds: o.sea ? ['sea'] : ['rail'] })]); }); }
   }
 
   // ---- 地図は四角いグリッドで区切る。駅も道も、グリッドの1マスにぴったり入れる ----
