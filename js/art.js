@@ -182,7 +182,7 @@
     }
     function nearStation(x, y) {
       return A.STATIONS.some((s) => {
-        if (Math.hypot(x - s.x, y - s.y) < 60) return true;
+        if (Math.hypot(x - s.x, y - s.y) < 34) return true;
         const r = B.labels[s.id].rect;
         return x > r[0] - 10 && x < r[2] + 10 && y > r[1] - 10 && y < r[3] + 10;
       });
@@ -203,7 +203,7 @@
     for (let k = 0; k < want * 80 && placed.length < want; k++) {
       const x = x0 + rnd() * (x1 - x0), y = y0 + rnd() * (y1 - y0);
       if (!insidePoly(x, y, O) || distToCoast(x, y) < 16 * f) continue;
-      if (nearStation(x, y) || nearRail(x, y, 42)) continue;
+      if (nearStation(x, y) || nearRail(x, y, 24)) continue;
       if (placed.some((p) => Math.hypot(p[0] - x, p[1] - y) < 30 * f)) continue;
       placed.push([x, y]);
       const mountainZone = x > x0 + (x1 - x0) * 0.62 && y < y0 + (y1 - y0) * 0.6;

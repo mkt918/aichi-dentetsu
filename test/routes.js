@@ -14,5 +14,5 @@ const multi=A.STATIONS.filter(s=>sizes[comp[s.id]]>1 && (()=>{ // 輪に属す�
   return B.byId[s.id].adj.some(u=>{const k=s.id<u?s.id+'|'+u:u+'|'+s.id;return !bridges.has(k);});})());
 const mainComp=comp['nagoya'];
 const same=A.STATIONS.filter(s=>comp[s.id]===mainComp);
-console.log('橋の数',bridges.size,' 輪にのっている駅',multi.length,'/100 ・名古屋と同じ輪(2通り以上で行ける)',same.length,'/100');
+console.log('橋の数',bridges.size,' 輪にのっている駅',multi.length,'/'+A.STATIONS.length+' ・名古屋と同じ輪(2通り以上で行ける)',same.length,'/'+A.STATIONS.length);
 console.log('行き方が1通りの駅:',A.STATIONS.filter(s=>comp[s.id]!==mainComp).map(s=>s.name).join(' '));

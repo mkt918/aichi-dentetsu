@@ -5,7 +5,7 @@
   const A = (root.Aichi = root.Aichi || {});
 
   /** 世界の拡大率。デザイン空間(1200x1000)を何倍にして使うか */
-  const K = 2.6;
+  const K = 1.8;
   /** 経度・緯度 → デザイン空間（愛知県がちょうど入る投影） */
   const proj = (lon, lat) => [(lon - 136.6) * 900, (35.45 - lat) * 1050];
 
@@ -41,6 +41,7 @@
   const STATIONS = A.RAW_STATIONS.map((r) => ({
     id: r.id, name: r.name, region: r.region, lon: r.lon, lat: r.lat, desc: r.desc,
     shop: !!r.shop,     // カード売り場がある
+    plain: !!r.plain && !(OV.props && OV.props[r.id] && OV.props[r.id].length), // 地下鉄の駅など。物件もカードもなく、止まると少しおこづかい
     card: !!r.card && !(OV.props && OV.props[r.id] && OV.props[r.id].length), // 物件のないカード駅（止まるとカードがもらえる）
     island: !!r.island, // 島の駅（海の上に置く）
     pin: !!r.pin,       // 位置を動かさない駅
@@ -50,11 +51,11 @@
   // ---- 路線: 駅の並び（隣どうしを線路でつなぐ）。実在の路線をもとに、わかりやすく作り直したもの ----
   // 1本の路線は、駅を端から順に並べたもの。同じ区間が複数の路線にあれば1本にまとめる。
   const LINES = [
-    ['東山線', ['fujigaoka', 'hoshigaoka', 'higashiyama', 'nagoyadaigaku', 'kakuozan', 'imaike', 'sakae', 'fushimi', 'nagoya']],
-    ['名城線', ['sakae', 'nagoyajo', 'tokugawa', 'nagoyadome', 'ozone', 'imaike', 'sakae']],
-    ['鶴舞線', ['kanayama', 'osu', 'tsurumai', 'yagoto', 'mizuho']],
-    ['桜通線', ['nakamura', 'nagoya']],
-    ['名港線', ['kanayama', 'nagoyakou', 'kinjo']],
+    ['東山線', ['fujigaoka', 'hongo', 'kamiyashiro', 'issha', 'hoshigaoka', 'higashiyama', 'motoyama', 'kakuozan', 'ikeshita', 'imaike', 'chikusa', 'shinsakaemachi', 'sakae', 'fushimi', 'nagoya', 'nakamurakuyakusho', 'takabata']],
+    ['名城線', ['ozone', 'nagoyadome', 'sunadabashi', 'chayagasaka', 'jiyugaoka', 'motoyama', 'nagoyadaigaku', 'yagoto', 'mizuho', 'shinzuibashi', 'hotta', 'tenmacho', 'jingunishi', 'kanayama', 'higashibetsuin', 'kamimaezu', 'yabacho', 'sakae', 'hisayaodori', 'nagoyajo', 'meijokoen', 'kurokawa', 'heianzuri', 'ozone']],
+    ['鶴舞線', ['kamiotai', 'joshin', 'marunouchi', 'fushimi', 'osu', 'kamimaezu', 'tsurumai', 'arahata', 'kokiso', 'yagoto']],
+    ['桜通線', ['nakamura', 'nakamurakuyakusho', 'nagoya', 'kokusaicenter', 'marunouchi', 'hisayaodori', 'tokugawa', 'imaike', 'kokiso', 'mizuho', 'shinzuibashi']],
+    ['名港線', ['kanayama', 'hibino', 'tokaidori', 'minatoku', 'nagoyakou', 'kinjo']],
     ['あおなみ線', ['kinjo', 'yatomi']],
     ['JR東海道線', ['nagoya', 'kanayama', 'atsuta', 'obu', 'kariya', 'anjo', 'okazaki', 'goyu', 'kozakai', 'toyohashi']],
     ['JR中央線', ['ozone', 'kasugai', 'kozoji']],
@@ -148,9 +149,9 @@
   }
 
   // ---- 地図は四角いグリッドで区切る。駅も道も、グリッドの1マスにぴったり入れる ----
-  const GRID = 60;                         // 1マスの大きさ（画面の px）
-  const SQUARE_SCALE = (GRID * 0.8) / 19;  // 途中マス（もとの絵は19px）を、1マスの8割に広げる倍率
-  const STATION_SCALE = (GRID * 0.94) / 39; // 駅（もとの絵は39px）をほぼ1マスに広げる倍率
+  const GRID = 34;                         // 1マスの大きさ（画面の px）
+  const SQUARE_SCALE = (GRID * 0.58) / 19;  // 途中マス（もとの絵は19px）を、1マスの8割に広げる倍率
+  const STATION_SCALE = (GRID * 0.9) / 39; // 駅（もとの絵は39px）をほぼ1マスに広げる倍率
   // 途中マスの種類の割合。赤と青は、前の前の版の3倍の数をめやすに、いまは割合で決める
   const SQUARE_MIX = { yellow: 0.09, event: 0.045, red: 0.31 }; // のこりは青
 

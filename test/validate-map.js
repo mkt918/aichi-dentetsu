@@ -19,14 +19,16 @@ function inside(pt, poly) {
 // 1. 駅・物件
 const all = A.STATIONS.flatMap((s) => s.props);
 const cardSt = A.STATIONS.filter((s) => s.card);
-note(`駅 ${A.STATIONS.length}（物件駅 ${A.STATIONS.length - cardSt.length} / カード駅 ${cardSt.length} / カード売り場 ${A.STATIONS.filter((s) => s.shop).length}）, 物件 ${all.length}`);
-if (A.STATIONS.length !== 100) warn('駅が100ではない: ' + A.STATIONS.length);
+const plainSt = A.STATIONS.filter((s) => s.plain), propSt = A.STATIONS.filter((s) => !s.card && !s.plain);
+note(`駅 ${A.STATIONS.length}（物件駅 ${propSt.length} / カード駅 ${cardSt.length} / 通過駅(地下鉄など) ${plainSt.length} / カード売り場 ${A.STATIONS.filter((s) => s.shop).length}）, 物件 ${all.length}`);
+if (propSt.length !== 88 || cardSt.length !== 12) warn('物件駅88・カード駅12のはず');
+if (A.STATIONS.length < 100) warn('駅が100未満: ' + A.STATIONS.length);
 A.STATIONS.forEach((s) => {
   if (s.card && s.props.length) warn(s.name + ': カード駅なのに物件がある');
-  if (!s.card && s.props.length < 3) warn(s.name + ': 物件が少なすぎる ' + s.props.length);
+  if (!s.card && !s.plain && s.props.length < 3) warn(s.name + ': 物件が少なすぎる ' + s.props.length);
   s.props.forEach((p, i) => { if (i && p.price < s.props[i - 1].price) warn(s.name + ': 物件が安い順になっていない'); });
 });
-note('5件未満の物件駅: ' + (A.STATIONS.filter((s) => !s.card && s.props.length < 5).map((s) => s.name + s.props.length).join(' ') || 'なし'));
+note('5件未満の物件駅: ' + (A.STATIONS.filter((s) => !s.card && !s.plain && s.props.length < 5).map((s) => s.name + s.props.length).join(' ') || 'なし'));
 const names = new Set();
 all.forEach((p) => {
   if (names.has(p.name)) warn('物件名が重複: ' + p.name);
@@ -54,9 +56,12 @@ for (let i = 0; i < A.STATIONS.length; i++) for (let j = i + 1; j < A.STATIONS.l
   const a = A.STATIONS[i], b = A.STATIONS[j];
   const d = Math.max(Math.abs(a.cx - b.cx), Math.abs(a.cy - b.cy));
   minGap = Math.min(minGap, d);
-  if (d < 2) warn(`駅が近すぎる(となりのマス): ${a.name}-${b.name}`);
+  if (d < 3) warn(`駅が近すぎる(あいだに2マス欲しい): ${a.name}-${b.name}`);
 }
 note('駅どうしの最小のきょり ' + minGap + 'マス（グリッド）');
+
+// 駅と駅のあいだに、線路の見えるマスが2つ以上ある
+B.edges.forEach((e) => { if (e.chain.length < 4) warn(`駅のあいだが近すぎる: ${e.a}-${e.b}`); });
 
 // 3. 県内にあるか（島・橋・海路は除く）
 A.STATIONS.forEach((s) => {
@@ -107,8 +112,8 @@ A.STATIONS.forEach((s) => { if (!deg[s.id]) warn('路線につながっていな
     c++;
   });
   const multi = A.STATIONS.filter((s) => comp[s.id] === comp.nagoya).length;
-  note(`2通り以上の行き方がある駅 ${multi}/100`);
-  if (multi < 70) warn('行き方が複数ある駅が7割に届かない: ' + multi);
+  note(`2通り以上の行き方がある駅 ${multi}/${A.STATIONS.length}`);
+  if (multi < A.STATIONS.length * 0.7) warn('行き方が複数ある駅が7割に届かない: ' + multi);
 }
 
 // 6. ラベル

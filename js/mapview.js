@@ -9,7 +9,7 @@
   const minX = Math.min.apply(null, bx), maxX = Math.max.apply(null, bx), minY = Math.min.apply(null, by), maxY = Math.max.apply(null, by);
   const WORLD = { x0: minX - 160, y0: minY - 160, x1: maxX + 160, y1: maxY + 160 };
   const FIT = { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: maxX - minX + 200, h: maxY - minY + 200 };
-  const ZOOM_MIN = 230, ZOOM_MAX = Math.max(3200, (maxX - minX) * 1.5);
+  const ZOOM_MIN = 120, ZOOM_MAX = Math.max(3200, (maxX - minX) * 1.5);
 
   function svgEl(tag, attrs, html) {
     const e = document.createElementNS(NS, tag);
@@ -83,8 +83,8 @@
       });
 
       A.STATIONS.forEach((s) => {
-        const iconName = s.props.length ? s.props.reduce((a, b) => (b.price > a.price ? b : a)).icon : 'card';
-        const g = svgEl('g', { class: 'st' + (s.card ? ' st-card' : ''), transform: 'translate(' + s.x + ' ' + s.y + ') scale(' + A.STATION_SCALE.toFixed(3) + ')', 'data-id': s.id, tabindex: '-1' });
+        const iconName = s.props.length ? s.props.reduce((a, b) => (b.price > a.price ? b : a)).icon : s.plain ? 'train' : 'card';
+        const g = svgEl('g', { class: 'st' + (s.card ? ' st-card' : '') + (s.plain ? ' st-plain' : ''), transform: 'translate(' + s.x + ' ' + s.y + ') scale(' + A.STATION_SCALE.toFixed(3) + ')', 'data-id': s.id, tabindex: '-1' });
         g.appendChild(svgEl('rect', { x: -29, y: -29, width: 58, height: 58, rx: 15, class: 'st-halo' }));
         g.appendChild(svgEl('rect', { x: -19.5, y: -19.5, width: 39, height: 39, rx: 8, class: 'st-base' }));
         g.appendChild(svgEl('g', { class: 'st-icon', transform: 'translate(-10.5 -10.5) scale(.875)' }, Art.iconInner(iconName)));
@@ -118,7 +118,7 @@
           '<g class="piece-body"><circle class="piece-ring" r="21" cy="-23"/><g transform="translate(0 -23) scale(.78)">' + Art.characterInner(p.char) + '</g></g>' +
           '<g class="piece-god" transform="translate(15 -42) scale(.5)">' + Art.godInner() + '</g>' +
           '<g class="piece-count" transform="translate(0 -56)"><rect x="-13" y="-11" width="26" height="22" rx="11"/><text y="5" text-anchor="middle">0</text></g>';
-        g.innerHTML = '<g transform="scale(1.35)">' + inner + '</g>';
+        g.innerHTML = '<g transform="scale(0.9)">' + inner + '</g>';
         gPieces.appendChild(g);
         return { g, x: 0, y: 0, node: p.pos, body: g.querySelector('.piece-body'), count: g.querySelector('.piece-count'), countText: g.querySelector('.piece-count text'), god: g.querySelector('.piece-god') };
       });
@@ -141,7 +141,7 @@
         });
       });
       const d = B.byId[state.dest];
-      this.flag.setAttribute('transform', 'translate(' + (d.x + 20) + ' ' + (d.y - 30) + ') scale(1.35)');
+      this.flag.setAttribute('transform', 'translate(' + (d.x + 12) + ' ' + (d.y - 16) + ') scale(0.8)');
       this.layoutPieces(state, false);
       state.players.forEach((p, i) => { this.pieces[i].god.classList.toggle('is-on', !!p.god); });
       this.drawRoute(state);
@@ -158,7 +158,7 @@
       const same = state.players.filter((p) => this.pieces[p.id].node === nodeId).map((p) => p.id);
       const k = same.indexOf(i), n = same.length;
       if (n <= 1) return [0, 0];
-      const R = (n === 2 ? 11 : 13) * 1.6;
+      const R = (n === 2 ? 11 : 13) * 0.9;
       const a = (Math.PI * 2 * k) / n - Math.PI / 2 + (n === 2 ? Math.PI / 2 : 0);
       return [Math.cos(a) * R, Math.sin(a) * R * 0.7];
     }
@@ -224,7 +224,7 @@
     /** マスの上にお金などの数字をふわっと出す */
     pop(nodeId, text, kind) {
       const n = B.byId[nodeId];
-      const t = svgEl('text', { x: n.x, y: n.y - 80, class: 'pop pop--' + (kind || 'good'), 'text-anchor': 'middle' });
+      const t = svgEl('text', { x: n.x, y: n.y - 40, class: 'pop pop--' + (kind || 'good'), 'text-anchor': 'middle' });
       t.textContent = text;
       this.gFx.appendChild(t);
       setTimeout(() => t.remove(), 1700);
@@ -262,7 +262,7 @@
         const rings = options.map((id) => {
           const n = B.byId[id];
           const g = svgEl('g', { class: 'pick', transform: 'translate(' + n.x + ' ' + n.y + ')', 'data-id': id });
-          g.innerHTML = '<rect x="-29" y="-29" width="58" height="58" rx="12" class="pick-ring"/><circle r="32" class="pick-hit"/><path d="M-7 -4l7 7 7-7" class="pick-arrow"/>';
+          g.innerHTML = '<rect x="-19" y="-19" width="38" height="38" rx="8" class="pick-ring"/><circle r="21" class="pick-hit"/><path d="M-5 -3l5 5 5-5" class="pick-arrow"/>';
           this.gFx.appendChild(g);
           return g;
         });
@@ -311,7 +311,7 @@
     /** 画面の広さに合わせた「ちょうどよいズーム」 */
     comfyWidth() {
       const r = this.stage.getBoundingClientRect();
-      return clamp(r.width < 560 ? 560 : r.width < 900 ? 720 : 860, ZOOM_MIN, ZOOM_MAX);
+      return clamp(r.width < 560 ? 340 : r.width < 900 ? 440 : 520, ZOOM_MIN, ZOOM_MAX);
     }
     focusNode(id, w, ms) {
       if (!this.follow) return;

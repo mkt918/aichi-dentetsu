@@ -31,6 +31,7 @@
     else if (node.type === 'station') {
       const st = L.STATION[node.station];
       if (st.card) sc += 14;
+      if (st.plain) sc += 5;
       if (st.shop && p.cash > 3000 * f) sc += 5;
       const buyable = st.props.filter((pr) => s.owners[pr.id] === undefined && pr.price + 400 * f <= p.cash);
       if (buyable.length) sc += Math.max.apply(null, buyable.map((pr) => propScore(s, idx, pr))) * 1.6;

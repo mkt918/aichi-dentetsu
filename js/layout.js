@@ -7,7 +7,7 @@
   const K = A.K;
   const S = A.STATIONS;
 
-  const MIN_GAP = 58;      // 駅どうしの最小距離（デザイン空間）。K倍した値が画面上の距離
+  const MIN_GAP = 52;      // 駅どうしの最小距離（デザイン空間）。K倍した値が画面上の距離
   const ITER = 1800;
 
   // ---- 1. 実際の位置から出発する。まず名古屋を中心に「魚眼レンズ」のように外へ広げて（並び順は変わらない）、
@@ -17,7 +17,7 @@
   const fish = (p, pinned) => {
     if (pinned) return p.slice();
     const dx = p[0] - C[0], dy = p[1] - C[1], r = Math.hypot(dx, dy) || 1;
-    const k = 1 + 3.0 * Math.exp(-r / 100);
+    const k = 1 + 4.5 * Math.exp(-r / 110);
     return [C[0] + dx * k, C[1] + dy * k];
   };
   const base1 = p0.map((p, i) => fish(p, S[i].pin));

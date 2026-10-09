@@ -37,12 +37,12 @@
   const stCell = {}; // 駅ID -> [cx, cy]
   (function snapStations() {
     const placed = [];
-    const far = (x, y) => placed.every(([px, py]) => Math.max(Math.abs(px - x), Math.abs(py - y)) >= 2);
+    const far = (x, y) => placed.every(([px, py]) => Math.max(Math.abs(px - x), Math.abs(py - y)) >= 3);
     const order = A.STATIONS.slice().sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0));
     order.forEach((s) => {
       const ox = s.x / G, oy = s.y / G;
       let best = null;
-      for (let r = 0; r <= 8 && !best; r++) {
+      for (let r = 0; r <= 12 && !best; r++) {
         for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           const x = Math.round(ox) + dx, y = Math.round(oy) + dy;
@@ -125,7 +125,7 @@
       if (!byId[aId] || !byId[bId]) throw new Error('未定義の駅: ' + aId + ' / ' + bId);
       const kinds = opt.kinds && opt.kinds.length ? opt.kinds : ['rail'];
       const isRoadOnly = !kinds.includes('rail') && !kinds.includes('sea') && !kinds.includes('bridge');
-      const cells = route(sCell(aId), sCell(bId), !!(opt.sea || opt.bridge), isRoadOnly ? 0.85 : 0.5);
+      const cells = route(sCell(aId), sCell(bId), !!(opt.sea || opt.bridge), isRoadOnly ? 1 : 0.9);
       const chain = [];
       let prev = null;
       cells.forEach(([cx, cy]) => {

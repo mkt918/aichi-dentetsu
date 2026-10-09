@@ -454,7 +454,7 @@
       h('p.station-meta', h('span.chip', REGION[st.region]), s.dest === id ? h('span.chip.chip--dest', { html: Art.flag(14) + '目的地' }) : null,
         st.card ? h('span.chip.chip--card', 'カード駅') : null, st.shop ? h('span.chip.chip--card', 'カード売り場') : null,
         mono >= 0 ? h('span.chip.chip--mono', '独占中（収入2倍）') : null),
-      st.card ? h('p.hint', '物件はありません。止まると、カードが1枚もらえます。') : h('div.props', st.props.map((p) => propRow(s, p))));
+      st.plain ? h('p.hint', '通過駅です。物件はありません。止まると、少しおこづかいがもらえます。') : st.card ? h('p.hint', '物件はありません。止まると、カードが1枚もらえます。') : h('div.props', st.props.map((p) => propRow(s, p))));
     return modal({ title: esc(st.name) + '駅', body, actions: [{ label: 'とじる', value: true }] }).promise;
   }
   const REGION = A.REGION;
@@ -673,7 +673,7 @@
 
   // ---------- 買い物 ----------
   function stationBanner(st) {
-    const icon = st.props.length ? st.props.reduce((a, b) => (b.price > a.price ? b : a)).icon : 'card';
+    const icon = st.props.length ? st.props.reduce((a, b) => (b.price > a.price ? b : a)).icon : st.plain ? 'train' : 'card';
     return UI.banner({ title: esc(st.name) + '駅', sub: esc(st.desc), kind: 'station', art: Art.icon(icon, 44) }, 900);
   }
 

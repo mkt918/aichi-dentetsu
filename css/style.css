@@ -640,3 +640,20 @@ small { font-size: var(--text-xs); }
 .lk-sea-line { stroke: var(--rail-line); stroke-width: 5; stroke-dasharray: 3 14; stroke-linecap: round; }
 .st-label { pointer-events: none; }
 .sq-c { stroke-width: 2.4; }
+
+/* ======================================================= 小さなマス（1マス=34px）に合わせた道の太さ */
+.lk-rail-bed { stroke-width: 12; }
+.lk-rail-line { stroke-width: 2.4; stroke-dasharray: 6 5; }
+.lk-expressway-bed { stroke-width: 10; }
+.lk-expressway-line { stroke-width: 2; stroke-dasharray: 2 6; }
+.lk-national-bed { stroke-width: 8; }
+.lk-national-line { stroke-width: 2; }
+.lk-pref-bed { stroke-width: 5; }
+.lk-bridge-bed { stroke-width: 14; }
+.lk-bridge-line { stroke-width: 3; stroke-dasharray: 6 5; }
+.lk-sea-bed { stroke-width: 9; }
+.lk-sea-line { stroke-width: 3; stroke-dasharray: 2 9; }
+.m-grid { stroke-width: 1.2; }
+.st-plain .st-base { fill: var(--color-paper-2); }
+.st-plain .st-icon { fill: var(--color-ink-2); }
+.sq-c { stroke-width: 2; }

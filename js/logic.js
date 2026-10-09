@@ -195,9 +195,9 @@
   function pickDest(s) {
     const cands = A.STATIONS.filter((st) => st.id !== s.dest && !s.players.some((p) => p.pos === st.id));
     const minD = (st) => Math.min.apply(null, s.players.map((p) => B.distFrom(st.id)[p.pos]));
-    // 目的地は、いちばん近い人から 9〜30 マス先の駅をえらぶ（マスが多いぶん、遠すぎると遊びのテンポが落ちる）
-    let pool = cands.filter((st) => minD(st) >= 9 && minD(st) <= 30);
-    if (!pool.length) pool = cands.filter((st) => minD(st) >= 9);
+    // 目的地は、いちばん近い人から 12〜45 マス先の駅をえらぶ（マスが多いぶん、遠すぎると遊びのテンポが落ちる）
+    let pool = cands.filter((st) => minD(st) >= 12 && minD(st) <= 45);
+    if (!pool.length) pool = cands.filter((st) => minD(st) >= 12);
     if (!pool.length) pool = cands;
     const st = pool[rint(s, pool.length)];
     const avg = s.players.reduce((a, p) => a + B.distFrom(st.id)[p.pos], 0) / s.players.length;
@@ -435,7 +435,12 @@
     if (eff.kind === 'station') {
       const st = STATION[eff.station];
       await drv.emit({ t: 'station', p: idx, station: eff.station });
-      if (st.card) {
+      if (st.plain) {
+        // 地下鉄の駅などの通過駅: 止まると少しおこづかい
+        const amount = round10((100 + rint(s, 3) * 100) * yf(s));
+        p.cash += amount;
+        await drv.emit({ t: 'square', p: idx, eff: { kind: 'blue', amount } });
+      } else if (st.card) {
         // 物件のないカード駅: 止まるとカードがもらえる
         const card = drawCard(s);
         const got = await gainCardWithDiscard(s, idx, card, drv);
