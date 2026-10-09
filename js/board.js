@@ -149,8 +149,43 @@
       edges.push({ index: ei, a: aId, b: bId, sea: !!opt.sea, bridge: !!opt.bridge, kinds, chain });
     });
     const links = Array.from(linkMap.values()).map((l) => ({ a: l.a, b: l.b, kind: KIND_RANK.find((k) => l.kinds.has(k)) || 'rail', kinds: Array.from(l.kinds) }));
-    assignTypes(nodes, rnd);
-    return { nodes, byId, edges, links };
+    thinOut(nodes, byId, edges, links);
+    links.forEach((l) => { const a = byId[l.a], b = byId[l.b]; l.pts = [[a.x, a.y]].concat((l.via || []).map((v) => [v.x, v.y]), [[b.x, b.y]]); });
+    const live = nodes.filter((n) => !n.gone);
+    assignTypes(live, rnd);
+    return { nodes: live, byId, edges, links };
+  }
+
+  /** 途中マスを半分にする。一本道（つながりが2つだけ）のマスを1つおきに取りのぞき、両どなりを直接つなぐ。
+   *  線路や道の見た目は変えない（取りのぞいたマスの位置を通る折れ線で描く）。 */
+  function thinOut(nodes, byId, edges, links) {
+    const linkOf = new Map(); links.forEach((l) => linkOf.set(l.a < l.b ? l.a + '|' + l.b : l.b + '|' + l.a, l));
+    const keyOf = (x, y) => (x < y ? x + '|' + y : y + '|' + x);
+    edges.forEach((e) => {
+      e.cells = e.chain.length;
+      let prevKept = true;
+      for (let i = 1; i < e.chain.length - 1; i++) {
+        const n = byId[e.chain[i]];
+        if (n.gone || n.type !== 'mid' || n.adj.length !== 2) { prevKept = true; continue; }
+        if (!prevKept) { prevKept = true; continue; }
+        const [p, q] = n.adj;
+        if (p === q || byId[p].adj.includes(q)) { prevKept = true; continue; }
+        const l1 = linkOf.get(keyOf(p, n.id)), l2 = linkOf.get(keyOf(n.id, q));
+        if (!l1 || !l2) { prevKept = true; continue; }
+        // p - n - q  を  p - q  にする（途中の点 n を via に覚える）
+        const via1 = l1.a === p ? (l1.via || []) : (l1.via || []).slice().reverse();
+        const via2 = l2.a === n.id ? (l2.via || []) : (l2.via || []).slice().reverse();
+        const nl = { a: p, b: q, kind: l1.kind, kinds: Array.from(new Set(l1.kinds.concat(l2.kinds))), via: via1.concat([{ x: n.x, y: n.y }], via2) };
+        links.splice(links.indexOf(l1), 1); links.splice(links.indexOf(l2), 1); links.push(nl);
+        linkOf.delete(keyOf(p, n.id)); linkOf.delete(keyOf(n.id, q)); linkOf.set(keyOf(p, q), nl);
+        const P = byId[p], Q = byId[q];
+        P.adj = P.adj.map((x) => (x === n.id ? q : x)); Q.adj = Q.adj.map((x) => (x === n.id ? p : x));
+        n.gone = true; n.adj = [];
+        prevKept = false;
+      }
+      e.chain = e.chain.filter((id) => !byId[id].gone);
+    });
+    nodes.forEach((n) => { if (n.gone) delete byId[n.id]; });
   }
 
   /** 途中マスの種類を、決めた割合で配る（黄・紫・赤、のこりは青） */
@@ -270,7 +305,7 @@
   function computeLabels() {
     const U = A.STATION_SCALE;
     const pts = []; // 道の上の点（マスの中心と、マスとマスの真ん中）
-    B.links.forEach((l) => { const a = B.byId[l.a], b = B.byId[l.b]; pts.push([(a.x + b.x) / 2, (a.y + b.y) / 2]); });
+    B.links.forEach((l) => { for (let i = 0; i + 1 < l.pts.length; i++) pts.push([(l.pts[i][0] + l.pts[i + 1][0]) / 2, (l.pts[i][1] + l.pts[i + 1][1]) / 2]); });
     const labels = {};
     const rectOf = (id) => (labels[id] ? labels[id].rect : null);
     const choose = (s) => {

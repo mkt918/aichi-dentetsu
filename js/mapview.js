@@ -63,9 +63,9 @@
       // 太い道（国道・高速道路）が下、線路が上になるように、種類ごとに重ねる
       ['pref', 'national', 'expressway', 'rail', 'bridge', 'sea'].forEach((kind) => {
         B.links.filter((l) => l.kind === kind).forEach((l) => {
-          const a = B.byId[l.a], b = B.byId[l.b];
-          gEdges.appendChild(svgEl('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'lk lk-' + kind + '-bed' }));
-          gEdges.appendChild(svgEl('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'lk lk-' + kind + '-line' }));
+          const d = 'M' + l.pts.map((p) => p[0] + ' ' + p[1]).join('L');
+          gEdges.appendChild(svgEl('path', { d, class: 'lk lk-' + kind + '-bed' }));
+          gEdges.appendChild(svgEl('path', { d, class: 'lk lk-' + kind + '-line' }));
         });
       });
 

@@ -195,14 +195,14 @@
   function pickDest(s) {
     const cands = A.STATIONS.filter((st) => st.id !== s.dest && !s.players.some((p) => p.pos === st.id));
     const minD = (st) => Math.min.apply(null, s.players.map((p) => B.distFrom(st.id)[p.pos]));
-    // 目的地は、いちばん近い人から 12〜45 マス先の駅をえらぶ（マスが多いぶん、遠すぎると遊びのテンポが落ちる）
-    let pool = cands.filter((st) => minD(st) >= 12 && minD(st) <= 45);
-    if (!pool.length) pool = cands.filter((st) => minD(st) >= 12);
+    // 目的地は、いちばん近い人から 10〜34 マス先の駅をえらぶ（マスが多いぶん、遠すぎると遊びのテンポが落ちる）
+    let pool = cands.filter((st) => minD(st) >= 10 && minD(st) <= 34);
+    if (!pool.length) pool = cands.filter((st) => minD(st) >= 10);
     if (!pool.length) pool = cands;
     const st = pool[rint(s, pool.length)];
     const avg = s.players.reduce((a, p) => a + B.distFrom(st.id)[p.pos], 0) / s.players.length;
     s.dest = st.id;
-    s.destBase = round10(2000 + 70 * avg);
+    s.destBase = round10(2000 + 110 * avg);
     return st.id;
   }
   function destBonus(s) { return round10(s.destBase * yf(s)); }

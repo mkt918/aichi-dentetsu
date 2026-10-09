@@ -1,6 +1,6 @@
 /* 盤面の整合性チェック: node test/validate-map.js */
 'use strict';
-['stations', 'overrides', 'data', 'layout', 'board'].forEach((f) => require('../js/' + f + '.js'));
+['stations', 'stationtext', 'overrides', 'data', 'layout', 'board'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi;
 const B = A.Board, G = A.GRID;
 let problems = 0;
@@ -48,7 +48,9 @@ B.nodes.forEach((n) => {
   if (n.x !== n.cx * G || n.y !== n.cy * G) warn('グリッドからずれている: ' + n.id);
   n.adj.forEach((id) => {
     const m = B.byId[id];
-    if (Math.abs(m.cx - n.cx) + Math.abs(m.cy - n.cy) !== 1) warn(`斜め・飛びのつながり: ${n.id}-${id}`);
+    const lk = B.links.find((l) => (l.a === n.id && l.b === id) || (l.b === n.id && l.a === id));
+    if (!lk) warn(`道のないつながり: ${n.id}-${id}`);
+    else for (let i = 0; i + 1 < lk.pts.length; i++) { const d = Math.abs(lk.pts[i + 1][0] - lk.pts[i][0]) + Math.abs(lk.pts[i + 1][1] - lk.pts[i][1]); if (d !== G) warn(`斜め・飛びのつながり: ${n.id}-${id}`); }
   });
 });
 let minGap = Infinity;
@@ -61,7 +63,7 @@ for (let i = 0; i < A.STATIONS.length; i++) for (let j = i + 1; j < A.STATIONS.l
 note('駅どうしの最小のきょり ' + minGap + 'マス（グリッド）');
 
 // 駅と駅のあいだに、線路の見えるマスが2つ以上ある
-B.edges.forEach((e) => { if (e.chain.length < 4) warn(`駅のあいだが近すぎる: ${e.a}-${e.b}`); });
+B.edges.forEach((e) => { if ((e.cells || e.chain.length) < 4) warn(`駅のあいだが近すぎる: ${e.a}-${e.b}`); });
 
 // 3. 県内にあるか（島・橋・海路は除く）
 A.STATIONS.forEach((s) => {

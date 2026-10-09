@@ -39,7 +39,7 @@
     return list.map((it, i) => ({ it, i })).sort((a, b) => a.it[2] - b.it[2] || a.i - b.i).map((o) => o.it);
   };
   const STATIONS = A.RAW_STATIONS.map((r) => ({
-    id: r.id, name: r.name, region: r.region, lon: r.lon, lat: r.lat, desc: r.desc,
+    id: r.id, name: r.name, region: r.region, lon: r.lon, lat: r.lat, desc: r.desc, tag: r.tag || r.desc,
     shop: !!r.shop,     // カード売り場がある
     plain: !!r.plain && !(OV.props && OV.props[r.id] && OV.props[r.id].length), // 地下鉄の駅など。物件もカードもなく、止まると少しおこづかい
     card: !!r.card && !(OV.props && OV.props[r.id] && OV.props[r.id].length), // 物件のないカード駅（止まるとカードがもらえる）

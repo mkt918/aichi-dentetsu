@@ -674,7 +674,7 @@
   // ---------- 買い物 ----------
   function stationBanner(st) {
     const icon = st.props.length ? st.props.reduce((a, b) => (b.price > a.price ? b : a)).icon : st.plain ? 'train' : 'card';
-    return UI.banner({ title: esc(st.name) + '駅', sub: esc(st.desc), kind: 'station', art: Art.icon(icon, 44) }, 900);
+    return UI.banner({ title: esc(st.name) + '駅', sub: esc(st.tag || st.desc), kind: 'station', art: Art.icon(icon, 44) }, 900);
   }
 
   async function cpuShop(s, idx, st) {
@@ -717,6 +717,7 @@
       const sale = s.turn.sale;
       body.appendChild(h('div.shop-head', h('span', { html: Art.coin(20) + ' 所持金 <b>' + fmt(p.cash) + '</b>' }),
         sale ? h('span.chip.chip--sale', '半額セール中!') : null));
+      body.appendChild(h('div.shop-about', h('span.chip', REGION[st.region]), h('p.station-desc', st.desc)));
       const mono = L.monopolyOwner(s, st.id);
       body.appendChild(h('p.hint', mono === idx ? 'この駅を独占しています（収入2倍）!' : 'この駅の物件を全部買うと収入が2倍に。自分の物件は「増資」で価格と収入を増やせます（最大3回）。'));
       const list = h('div.props');

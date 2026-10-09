@@ -55,6 +55,13 @@
     const BLEND = A.MAP_BLEND != null ? A.MAP_BLEND : 0.7;
     base1 = base1.map((m, i) => { const f = fish(p0[i], S[i].pin); if (S[i].pin) return f; return [f[0] + (m[0] - f[0]) * BLEND, f[1] + (m[1] - f[1]) * BLEND]; });
   } else base1 = p0.map((p, i) => fish(p, S[i].pin));
+  // 名古屋市の外がわ（尾張・知多・三河・渥美）も広げる。名古屋から離れるほど、ゆるやかに外へ
+  const WIDEN = A.MAP_WIDEN != null ? A.MAP_WIDEN : 0.4;
+  base1 = base1.map((p) => {
+    const dx = p[0] - C[0], dy = p[1] - C[1], r = Math.hypot(dx, dy);
+    const u = Math.max(0, Math.min(1, (r - 70) / 150)), f = 1 + WIDEN * u * u * (3 - 2 * u);
+    return [C[0] + dx * f, C[1] + dy * f];
+  });
   const pos = base1.map((p, i) => [p[0] + ((i * 7) % 5 - 2) * 0.3, p[1] + ((i * 11) % 5 - 2) * 0.3]); // 同じ位置の駅をずらす微小な揺らぎ
   for (let it = 0; it < ITER; it++) {
     const tether = 0.01 + 0.03 * (1 - it / ITER);

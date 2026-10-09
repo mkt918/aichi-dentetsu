@@ -171,7 +171,7 @@
 
     // 木・山・家のかざり（駅・ラベル・路線をよけて置く）
     const segs = [];
-    B.links.forEach((l) => { const a = B.byId[l.a], b = B.byId[l.b]; segs.push([a.x, a.y, b.x, b.y]); });
+    B.links.forEach((l) => { for (let i = 0; i + 1 < l.pts.length; i++) segs.push([l.pts[i][0], l.pts[i][1], l.pts[i + 1][0], l.pts[i + 1][1]]); });
     function nearRail(x, y, lim) {
       for (const [ax, ay, bx, by] of segs) {
         const dx = bx - ax, dy = by - ay;
