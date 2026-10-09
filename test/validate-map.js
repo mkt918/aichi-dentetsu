@@ -21,8 +21,8 @@ const all = A.STATIONS.flatMap((s) => s.props);
 const cardSt = A.STATIONS.filter((s) => s.card);
 const plainSt = A.STATIONS.filter((s) => s.plain), propSt = A.STATIONS.filter((s) => !s.card && !s.plain);
 note(`駅 ${A.STATIONS.length}（物件駅 ${propSt.length} / カード駅 ${cardSt.length} / 通過駅(地下鉄など) ${plainSt.length} / カード売り場 ${A.STATIONS.filter((s) => s.shop).length}）, 物件 ${all.length}`);
-if (propSt.length !== 88 || cardSt.length !== 12) warn('物件駅88・カード駅12のはず');
-if (A.STATIONS.length < 100) warn('駅が100未満: ' + A.STATIONS.length);
+if (cardSt.length || plainSt.length) warn('カード駅・通過駅は無くしたはず');
+if (A.STATIONS.length < 100 || A.STATIONS.length > 200) warn('駅は100〜200のはず: ' + A.STATIONS.length);
 A.STATIONS.forEach((s) => {
   if (s.card && s.props.length) warn(s.name + ': カード駅なのに物件がある');
   if (!s.card && !s.plain && s.props.length < 3) warn(s.name + ': 物件が少なすぎる ' + s.props.length);

@@ -14,13 +14,47 @@
   //         そのあと近すぎる駅だけを軽く押しはなす ----
   const p0 = S.map((s) => A.proj(s.lon, s.lat));
   const C = A.proj(136.935, 35.150);
+  const hasMap = !!A.MAPPOS;
   const fish = (p, pinned) => {
     if (pinned) return p.slice();
     const dx = p[0] - C[0], dy = p[1] - C[1], r = Math.hypot(dx, dy) || 1;
-    const k = 1 + 4.5 * Math.exp(-r / 110);
+    const k = 1 + (hasMap ? 1.6 : 4.5) * Math.exp(-r / 110);
     return [C[0] + dx * k, C[1] + dy * k];
   };
-  const base1 = p0.map((p, i) => fish(p, S[i].pin));
+  // 路線図（A.MAPPOS）に載っている駅は、その位置を使う。実際の位置（p0）との対応を最小二乗の線形変換で求め、
+  // 載っていない駅は近くの駅のずれを引き継ぐ（路線図は名古屋が広く描かれているので、魚眼は使わない）
+  const MP = A.MAPPOS || {};
+  const have = S.map((s, i) => (MP[s.id] ? i : -1)).filter((i) => i >= 0);
+  let base1;
+  if (have.length >= 10) {
+    const n = have.length;
+    const mean = (f) => have.reduce((a, i) => a + f(i), 0) / n;
+    const mx = mean((i) => MP[S[i].id][0]), my = mean((i) => MP[S[i].id][1]);
+    const px = mean((i) => p0[i][0]), py = mean((i) => p0[i][1]);
+    let sxx = 0, sxy = 0, syy = 0, sxu = 0, syu = 0, sxv = 0, syv = 0;
+    have.forEach((i) => {
+      const x = MP[S[i].id][0] - mx, y = MP[S[i].id][1] - my, u = p0[i][0] - px, v = p0[i][1] - py;
+      sxx += x * x; sxy += x * y; syy += y * y; sxu += x * u; syu += y * u; sxv += x * v; syv += y * v;
+    });
+    const det = sxx * syy - sxy * sxy;
+    const a = (sxu * syy - syu * sxy) / det, b = (syu * sxx - sxu * sxy) / det;
+    const c = (sxv * syy - syv * sxy) / det, d = (syv * sxx - sxv * sxy) / det;
+    const toDesign = (m) => [px + a * (m[0] - mx) + b * (m[1] - my), py + c * (m[0] - mx) + d * (m[1] - my)];
+    const tgt = S.map((s, i) => (MP[s.id] ? fish(toDesign(MP[s.id]), false) : null));
+    base1 = p0.map((p, i) => {
+      if (tgt[i]) return tgt[i];
+      let sx = 0, sy = 0, sw = 0;
+      const near = have.map((j) => [j, Math.hypot(p[0] - p0[j][0], p[1] - p0[j][1])]).sort((u, v) => u[1] - v[1]).slice(0, 3);
+      near.forEach(([j, dd]) => {
+        const w = 1 / (dd * dd + 100);
+        sx += w * (tgt[j][0] - p0[j][0]); sy += w * (tgt[j][1] - p0[j][1]); sw += w;
+      });
+      return [p[0] + sx / sw, p[1] + sy / sw];
+    });
+    // 路線図どおりに寄せる度合い（0=実際の位置の魚眼配置 / 1=路線図どおり）。大きいほど忠実だが、県の輪郭や島の位置とずれる
+    const BLEND = A.MAP_BLEND != null ? A.MAP_BLEND : 0.7;
+    base1 = base1.map((m, i) => { const f = fish(p0[i], S[i].pin); if (S[i].pin) return f; return [f[0] + (m[0] - f[0]) * BLEND, f[1] + (m[1] - f[1]) * BLEND]; });
+  } else base1 = p0.map((p, i) => fish(p, S[i].pin));
   const pos = base1.map((p, i) => [p[0] + ((i * 7) % 5 - 2) * 0.3, p[1] + ((i * 11) % 5 - 2) * 0.3]); // 同じ位置の駅をずらす微小な揺らぎ
   for (let it = 0; it < ITER; it++) {
     const tether = 0.01 + 0.03 * (1 - it / ITER);
@@ -42,6 +76,25 @@
       pos[i][0] += (base1[i][0] - pos[i][0]) * tether;
       pos[i][1] += (base1[i][1] - pos[i][1]) * tether;
     }
+  }
+
+  // 仕上げ：引きもどしをやめて、近すぎる駅だけをしっかり押しはなす（グリッドで3マス空けるため）
+  for (let it = 0; it < 400; it++) {
+    let moved = false;
+    for (let i = 0; i < S.length; i++) {
+      for (let j = i + 1; j < S.length; j++) {
+        let dx = pos[j][0] - pos[i][0], dy = pos[j][1] - pos[i][1];
+        const d = Math.hypot(dx, dy);
+        if (d >= MIN_GAP + 6) continue;
+        if (d < 0.01) { dx = 1; dy = 0; }
+        const push = (MIN_GAP + 6 - d) / 2 / (d || 1);
+        const wi = S[i].pin ? 0 : 1, wj = S[j].pin ? 0 : 1, tot = wi + wj || 1;
+        pos[i][0] -= dx * push * 2 * wi / tot; pos[i][1] -= dy * push * 2 * wi / tot;
+        pos[j][0] += dx * push * 2 * wj / tot; pos[j][1] += dy * push * 2 * wj / tot;
+        moved = true;
+      }
+    }
+    if (!moved) break;
   }
 
   // ---- 2. 駅の動きから「ゆがみの場」を作り、輪郭や地図のかざりにも同じ動きを与える ----
@@ -68,5 +121,20 @@
   const OUTLINE_BASE = A.OUTLINE_REAL.map(warpPt);
   const OUTLINE = OUTLINE_BASE.map((p) => [Math.round(p[0] * K), Math.round(p[1] * K)]);
 
+  // 島の駅が、ゆがんだ輪郭の陸の上に乗ってしまったら、沖（陸の重心と反対がわ）へ押し出す
+  (function pushIslandsToSea() {
+    const inPoly = (x, y) => { let c = false; for (let i = 0, j = OUTLINE.length - 1; i < OUTLINE.length; j = i++) { const [xi, yi] = OUTLINE[i], [xj, yj] = OUTLINE[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c; } return c; };
+    S.forEach((s) => {
+      if (!s.island || !inPoly(s.x, s.y)) return;
+      const land = S.filter((q) => !q.island && inPoly(q.x, q.y));
+      let best = null;
+      land.forEach((q) => { const d = Math.hypot(q.x - s.x, q.y - s.y); if (!best || d < best.d) best = { q, d }; });
+      if (!best) return;
+      const ux = (s.x - best.q.x) / (best.d || 1), uy = (s.y - best.q.y) / (best.d || 1);
+      for (let k = 0; k < 80 && inPoly(s.x, s.y); k++) { s.x += ux * 8; s.y += uy * 8; }
+      s.x = Math.round(s.x); s.y = Math.round(s.y);
+      s.def = [s.x, s.y];
+    });
+  })();
   Object.assign(A, { warp, warpPt, OUTLINE_BASE, OUTLINE, LAYOUT_P0: p0 });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -42,7 +42,7 @@
     order.forEach((s) => {
       const ox = s.x / G, oy = s.y / G;
       let best = null;
-      for (let r = 0; r <= 12 && !best; r++) {
+      for (let r = 0; r <= 24 && !best; r++) {
         for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           const x = Math.round(ox) + dx, y = Math.round(oy) + dy;

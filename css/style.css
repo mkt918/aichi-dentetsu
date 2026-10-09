@@ -657,3 +657,8 @@ small { font-size: var(--text-xs); }
 .st-plain .st-base { fill: var(--color-paper-2); }
 .st-plain .st-icon { fill: var(--color-ink-2); }
 .sq-c { stroke-width: 2; }
+
+/* ======================================================= 物件駅は紫（イベントのマスは青緑） */
+.st-base { fill: color-mix(in oklch, var(--color-lavender) 70%, var(--color-paper)); stroke: var(--color-ink); }
+.st-icon { fill: var(--color-ink); color: var(--color-ink); }
+.ed-st-box { fill: color-mix(in oklch, var(--color-lavender) 70%, var(--color-paper)); }
