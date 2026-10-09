@@ -5,7 +5,7 @@
   const L = A.Logic, B = A.Board, UI = A.UI, Art = A.Art, AI = A.AI, Au = A.Audio;
   const { h, $, $$, esc, sleep, modal } = UI;
   const fmt = L.fmt;
-  const SAVE_KEY = 'aichi-dentetsu-save-v2', PREF_KEY = 'aichi-dentetsu-pref-v1';
+  const SAVE_KEY = 'aichi-dentetsu-save-v3', PREF_KEY = 'aichi-dentetsu-pref-v1';
   const LEVELS = { 1: 'よわい', 2: 'ふつう', 3: 'つよい' };
   const SPEEDS = [{ v: 1, name: 'ふつう' }, { v: 0.5, name: 'はやい' }, { v: 0.2, name: 'とてもはやい' }, { v: 0, name: 'さいそく' }];
 
@@ -434,13 +434,15 @@
     const o = s.owners[prop.id], own = o !== undefined ? s.players[o] : null;
     const lv = (s.levels && s.levels[prop.id]) || 0, price = L.propPrice(s, prop);
     const inc = Math.round(price * prop.rate / 100);
-    const row = h('div.prop' + (own ? '.is-owned' : ''), { style: own ? { '--pc': A.CHARS[own.char % A.CHARS.length].color } : {} },
+    const act = h('span.prop-act');
+    if (own) act.appendChild(h('span.prop-owner', { html: Art.character(own.char, 22) + '<b>' + esc(own.name) + '</b>' }));
+    if (opts && opts.extra) act.appendChild(opts.extra);
+    return h('div.prop' + (own ? '.is-owned' : ''), { style: own ? { '--pc': A.CHARS[own.char % A.CHARS.length].color } : {} },
       h('span.prop-ico', { html: Art.icon(prop.icon, 26) }),
-      h('span.prop-main', h('strong', prop.name, lv ? h('em.tag', '増資 Lv.' + lv) : null),
-        h('small', '価格 ' + fmt(price) + ' ・利回り ' + prop.rate + '% ・年収 ' + fmt(inc))));
-    if (own) row.appendChild(h('span.prop-owner', { html: Art.character(own.char, 22) + '<b>' + esc(own.name) + '</b>' }));
-    if (opts && opts.extra) row.appendChild(opts.extra);
-    return row;
+      h('span.prop-main',
+        h('strong.prop-name', prop.name, lv ? h('em.tag', '増資 Lv.' + lv) : null),
+        h('span.prop-stats', h('span.stat', '価格 ' + fmt(price)), h('span.stat', '利回り ' + prop.rate + '%'), h('span.stat', '年収 ' + fmt(inc)))),
+      act.children.length ? act : null);
   }
 
   function showStationInfo(id) {
@@ -460,7 +462,7 @@
   function showPlayerInfo(i) {
     const s = app.state; if (!s) return;
     const p = s.players[i], rank = L.ranking(s);
-    const props = L.ownedProps(s, i).sort((a, b) => L.propPrice(s, b) - L.propPrice(s, a));
+    const props = L.ownedProps(s, i).sort((a, b) => L.propPrice(s, a) - L.propPrice(s, b));
     const seeCards = L.current(s) === i && p.type === 'human';
     const body = h('div.player-info',
       h('div.pi-head', h('span', { html: Art.character(p.char, 56) }),
@@ -500,6 +502,7 @@
     emit: guarded((e) => handleEvent(e)),
     menu: guarded((s, idx, ctx) => (isHuman(idx) ? humanMenu(s, idx, ctx) : cpuMenu(s, idx))),
     branch: guarded((s, idx, ctx) => (isHuman(idx) ? humanBranch(s, idx, ctx) : cpuBranch(s, idx, ctx))),
+    target: guarded((s, idx, ctx) => (isHuman(idx) ? humanTarget(s, idx, ctx) : null)), // CPUは分かれ道ごとに自分で決める
     discard: guarded((s, idx, card) => (isHuman(idx) ? humanDiscard(s, idx, card) : Promise.resolve(AI.chooseDiscard(s, idx, card)))),
     shop: guarded((s, idx, st) => (isHuman(idx) ? humanShop(s, idx, st) : cpuShop(s, idx, st))),
     cardShop: guarded((s, idx, st) => (isHuman(idx) ? humanCardShop(s, idx, st) : cpuCardShop(s, idx, st))),
@@ -630,6 +633,20 @@
     })));
     if (many) $('#action-buttons').classList.add('is-compact');
     const id = await app.view.pickNode(ctx.options);
+    setActions([]);
+    return id;
+  }
+
+  // ---------- 行きたい場所をタッチして進む ----------
+  /** サイコロの目で止まれる場所に印が出る。ふれた場所まで、駒が自動で進む */
+  async function humanTarget(s, idx, ctx) {
+    const p = s.players[idx], v = app.view;
+    setMsg('<b>あと' + ctx.total + 'マス。</b>行きたい場所（光っているマス・駅）をタッチしてね。');
+    setActions([]);
+    const xs = ctx.endpoints.map((id) => B.byId[id].x).concat([B.byId[p.pos].x]), ys = ctx.endpoints.map((id) => B.byId[id].y).concat([B.byId[p.pos].y]);
+    const w = Math.max(v.comfyWidth(), (Math.max.apply(null, xs) - Math.min.apply(null, xs)) * 1.3, (Math.max.apply(null, ys) - Math.min.apply(null, ys)) * 1.3 / Math.max(0.3, v.aspect()));
+    v.setCam({ cx: (Math.max.apply(null, xs) + Math.min.apply(null, xs)) / 2, cy: (Math.max.apply(null, ys) + Math.min.apply(null, ys)) / 2, w }, 350);
+    const id = await v.pickNode(ctx.endpoints);
     setActions([]);
     return id;
   }
@@ -1124,6 +1141,7 @@
     renderTitle();
     $('#btn-rules').addEventListener('click', () => { Au.unlock(); Au.play('click'); showRules(); });
     $('#btn-sound-title').addEventListener('click', toggleSound);
+    $('#btn-editor').addEventListener('click', () => { Au.unlock(); Au.play('click'); A.Editor.open(); });
     $('#btn-setup-back').addEventListener('click', () => { Au.play('click'); renderTitle(); });
     $('#btn-start').addEventListener('click', () => {
       Au.unlock(); Au.play('click');

@@ -1,8 +1,8 @@
 /* 盤面の整合性チェック: node test/validate-map.js */
 'use strict';
-['stations', 'data', 'layout', 'board'].forEach((f) => require('../js/' + f + '.js'));
+['stations', 'overrides', 'data', 'layout', 'board'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi;
-const B = A.Board;
+const B = A.Board, G = A.GRID;
 let problems = 0;
 const warn = (m) => { problems++; console.log('✗ ' + m); };
 const note = (m) => console.log('  ' + m);
@@ -15,125 +15,105 @@ function inside(pt, poly) {
   }
   return c;
 }
-function distToPoly(pt, poly) {
-  let best = Infinity;
-  for (let i = 0; i < poly.length; i++) {
-    const [x1, y1] = poly[i], [x2, y2] = poly[(i + 1) % poly.length];
-    const dx = x2 - x1, dy = y2 - y1;
-    const t = Math.max(0, Math.min(1, ((pt.x - x1) * dx + (pt.y - y1) * dy) / (dx * dx + dy * dy || 1)));
-    best = Math.min(best, Math.hypot(pt.x - (x1 + t * dx), pt.y - (y1 + t * dy)));
-  }
-  return best;
-}
-function segInter(p1, p2, p3, p4) {
-  const d = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x);
-  if (Math.abs(d) < 1e-9) return false;
-  const t = ((p3.x - p1.x) * (p4.y - p3.y) - (p3.y - p1.y) * (p4.x - p3.x)) / d;
-  const u = ((p3.x - p1.x) * (p2.y - p1.y) - (p3.y - p1.y) * (p2.x - p1.x)) / d;
-  return t > 0.02 && t < 0.98 && u > 0.02 && u < 0.98;
-}
 
-// 1. 駅の数・物件の数
-const props = A.STATIONS.reduce((s, x) => s + x.props.length, 0);
+// 1. 駅・物件
+const all = A.STATIONS.flatMap((s) => s.props);
 const cardSt = A.STATIONS.filter((s) => s.card);
-note(`駅 ${A.STATIONS.length}（物件駅 ${A.STATIONS.length - cardSt.length} / カード駅 ${cardSt.length} / カード売り場 ${A.STATIONS.filter((s) => s.shop).length}）, 物件 ${props}`);
+note(`駅 ${A.STATIONS.length}（物件駅 ${A.STATIONS.length - cardSt.length} / カード駅 ${cardSt.length} / カード売り場 ${A.STATIONS.filter((s) => s.shop).length}）, 物件 ${all.length}`);
 if (A.STATIONS.length !== 100) warn('駅が100ではない: ' + A.STATIONS.length);
 A.STATIONS.forEach((s) => {
   if (s.card && s.props.length) warn(s.name + ': カード駅なのに物件がある');
   if (!s.card && s.props.length < 3) warn(s.name + ': 物件が少なすぎる ' + s.props.length);
+  s.props.forEach((p, i) => { if (i && p.price < s.props[i - 1].price) warn(s.name + ': 物件が安い順になっていない'); });
 });
-const few = A.STATIONS.filter((s) => !s.card && s.props.length < 5);
-note('5件未満の物件駅: ' + (few.map((s) => s.name + s.props.length).join(' ') || 'なし'));
+note('5件未満の物件駅: ' + (A.STATIONS.filter((s) => !s.card && s.props.length < 5).map((s) => s.name + s.props.length).join(' ') || 'なし'));
 const names = new Set();
-A.STATIONS.forEach((s) => s.props.forEach((p) => {
+all.forEach((p) => {
   if (names.has(p.name)) warn('物件名が重複: ' + p.name);
   names.add(p.name);
   if (!(p.price > 0 && p.rate >= 1)) warn('物件の価格/利回りが不正: ' + p.name);
-}));
-const cheap = A.STATIONS.flatMap((s) => s.props).filter((p) => p.price <= 1000);
-const rich = A.STATIONS.flatMap((s) => s.props).filter((p) => p.price >= 15000);
+  if (p.rate >= 10 && p.rate % 5) warn('利回りが5%刻みでない: ' + p.name + ' ' + p.rate);
+});
+const top = all.reduce((a, b) => (b.price > a.price ? b : a));
+note('最高額の物件: ' + top.name + ' ' + top.price + '万円');
+if (top.name !== '名古屋城' || top.price !== 2000000) warn('最高額は名古屋城 200億円のはず: ' + top.name + ' ' + top.price);
+const cheap = all.filter((p) => p.price <= 1000), rich = all.filter((p) => p.price >= 15000);
 note(`安い物件(1000万以下) ${cheap.length}件 利回り ${Math.min(...cheap.map((p) => p.rate))}〜${Math.max(...cheap.map((p) => p.rate))}% / 高い物件(1.5億以上) ${rich.length}件 利回り ${Math.min(...rich.map((p) => p.rate))}〜${Math.max(...rich.map((p) => p.rate))}%`);
 cheap.forEach((p) => { if (p.rate < 40) warn('安い物件の利回りが低い: ' + p.name + ' ' + p.rate); });
 
-// 2. 駅が県内にあるか／海岸からの距離
-A.STATIONS.forEach((s) => {
-  if (s.island) return;
-  if (!inside(s, A.OUTLINE)) warn(`駅 ${s.name} が県の輪郭の外 (${s.x},${s.y})`);
-  else if (distToPoly(s, A.OUTLINE) < 30) note(`(注意) ${s.name} は海岸/県境に近い: ${distToPoly(s, A.OUTLINE).toFixed(0)}px`);
-});
-A.STATIONS.forEach((s) => { if (s.island && inside(s, A.OUTLINE)) warn(`島の駅 ${s.name} が陸の上`); });
-
-// 3. 駅同士の最小距離
-let minD = Infinity;
-for (let i = 0; i < A.STATIONS.length; i++) for (let j = i + 1; j < A.STATIONS.length; j++) {
-  const d = Math.hypot(A.STATIONS[i].x - A.STATIONS[j].x, A.STATIONS[i].y - A.STATIONS[j].y);
-  minD = Math.min(minD, d);
-  if (d < 78) warn(`駅が近すぎる: ${A.STATIONS[i].name}-${A.STATIONS[j].name} ${d.toFixed(0)}px`);
-}
-note('駅どうしの最小距離 ' + minD.toFixed(0) + 'px');
-// 地図の大きさ
-const xs = A.STATIONS.map((s) => s.x), ys = A.STATIONS.map((s) => s.y);
-note(`駅の範囲 x ${Math.min(...xs)}〜${Math.max(...xs)} / y ${Math.min(...ys)}〜${Math.max(...ys)}（世界 ${Math.round(1200 * A.K)}x${Math.round(1000 * A.K)}）`);
-
-// 4. 全ノード間の最小距離（マス同士が重ならないか）
-for (let i = 0; i < B.nodes.length; i++) for (let j = i + 1; j < B.nodes.length; j++) {
-  const a = B.nodes[i], b = B.nodes[j];
-  if (a.adj.includes(b.id)) continue;
-  const d = Math.hypot(a.x - b.x, a.y - b.y);
-  const lim = (a.type === 'station' || b.type === 'station') ? 32 : 24;
-  if (d < lim) warn(`ノードが近すぎる: ${a.id}(${a.station || a.type}) - ${b.id}(${b.station || b.type}) ${d.toFixed(0)}px`);
-}
-B.nodes.forEach((a) => a.adj.forEach((id) => {
-  const b = B.byId[id];
-  const d = Math.hypot(a.x - b.x, a.y - b.y);
-  if (a.id < b.id && d < 26) warn(`隣接マスが詰まりすぎ: ${a.id}-${b.id} ${d.toFixed(0)}px`);
-}));
-
-// 5. 路線の交差（曲線を折れ線近似）
-function poly(edge) { return edge.chain.map((id) => B.byId[id]); }
-for (let i = 0; i < B.edges.length; i++) for (let j = i + 1; j < B.edges.length; j++) {
-  const pa = poly(B.edges[i]), pb = poly(B.edges[j]);
-  let hit = false;
-  for (let a = 0; a < pa.length - 1 && !hit; a++) for (let b = 0; b < pb.length - 1 && !hit; b++) {
-    if (segInter(pa[a], pa[a + 1], pb[b], pb[b + 1])) hit = true;
-  }
-  if (hit) warn(`路線が交差: ${B.edges[i].a}-${B.edges[i].b} × ${B.edges[j].a}-${B.edges[j].b}`);
-}
-// 駅の上を別の路線が通っていないか
-B.edges.forEach((e) => {
-  const pts = poly(e);
-  A.STATIONS.forEach((s) => {
-    if (s.id === e.a || s.id === e.b) return;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i], b = pts[i + 1], dx = b.x - a.x, dy = b.y - a.y;
-      const t = Math.max(0, Math.min(1, ((s.x - a.x) * dx + (s.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
-      if (Math.hypot(s.x - (a.x + t * dx), s.y - (a.y + t * dy)) < 30) { warn(`路線 ${e.a}-${e.b} が駅 ${s.name} の上を通る`); return; }
-    }
+// 2. グリッド: 駅もマスも、マスの中心に乗る。となりあうマスは上下左右だけ（斜めなし）
+B.nodes.forEach((n) => {
+  if (n.x !== n.cx * G || n.y !== n.cy * G) warn('グリッドからずれている: ' + n.id);
+  n.adj.forEach((id) => {
+    const m = B.byId[id];
+    if (Math.abs(m.cx - n.cx) + Math.abs(m.cy - n.cy) !== 1) warn(`斜め・飛びのつながり: ${n.id}-${id}`);
   });
 });
+let minGap = Infinity;
+for (let i = 0; i < A.STATIONS.length; i++) for (let j = i + 1; j < A.STATIONS.length; j++) {
+  const a = A.STATIONS[i], b = A.STATIONS[j];
+  const d = Math.max(Math.abs(a.cx - b.cx), Math.abs(a.cy - b.cy));
+  minGap = Math.min(minGap, d);
+  if (d < 2) warn(`駅が近すぎる(となりのマス): ${a.name}-${b.name}`);
+}
+note('駅どうしの最小のきょり ' + minGap + 'マス（グリッド）');
 
-// 6. 路線の中点が陸の上か（海路・橋は除く）
-B.nodes.filter((n) => n.type !== 'station').forEach((n) => {
-  const e = B.edges[n.edge];
-  if (!inside(n, A.OUTLINE) && !e.sea && !e.bridge) warn(`マス ${n.id}(${e.a}-${e.b}) が海上 (${n.x},${n.y})`);
+// 3. 県内にあるか（島・橋・海路は除く）
+A.STATIONS.forEach((s) => {
+  if (s.island) { if (inside(s, A.OUTLINE)) warn(`島の駅 ${s.name} が陸の上`); return; }
+  if (!inside(s, A.OUTLINE)) warn(`駅 ${s.name} が県の輪郭の外 (${s.x},${s.y})`);
 });
+let water = 0;
+B.nodes.filter((n) => n.type !== 'station').forEach((n) => {
+  if (!inside(n, A.OUTLINE)) { const e = B.edges[n.edge]; if (!(e.sea || e.bridge)) { water++; if (water <= 5) warn(`マス ${n.id}(${e.a}-${e.b}) が海上 (${n.x},${n.y})`); } }
+});
+if (water > 5) warn('海上のマス ほか ' + (water - 5) + ' 個');
+const xs = A.STATIONS.map((s) => s.x), ys = A.STATIONS.map((s) => s.y);
+note(`駅の範囲 グリッド ${Math.round((Math.max(...xs) - Math.min(...xs)) / G)}×${Math.round((Math.max(...ys) - Math.min(...ys)) / G)}マス`);
 
-// 7. 連結性・距離
+// 4. つながり・距離・マスの数
 const d0 = B.distFrom('nagoya');
 const unreachable = B.nodes.filter((n) => d0[n.id] === undefined);
-if (unreachable.length) warn('到達できないノード: ' + unreachable.map((n) => n.id).join(','));
-const far = Math.max(...Object.values(B.distFrom('inuyama')));
+if (unreachable.length) warn('到達できないノード: ' + unreachable.length + '個');
 const types = {};
 B.nodes.forEach((n) => { types[n.type] = (types[n.type] || 0) + 1; });
-note(`ノード ${B.nodes.length} ${JSON.stringify(types)} 路線 ${B.edges.length} / 犬山からの最大距離 ${far}マス / 名古屋→豊橋 ${d0.toyohashi}マス / 名古屋→伊良湖 ${d0.irago}マス`);
-const deg = {}; B.edges.forEach((e) => { deg[e.a] = (deg[e.a] || 0) + 1; deg[e.b] = (deg[e.b] || 0) + 1; });
-const hub = Object.keys(deg).sort((a, b) => deg[b] - deg[a]).slice(0, 5).map((k) => k + ':' + deg[k]).join(' ');
-note('つながりの多い駅 ' + hub);
+note(`ノード ${B.nodes.length} ${JSON.stringify(types)} 道 ${B.links.length}区間 / 犬山からの最大距離 ${Math.max(...Object.values(B.distFrom('inuyama')))}マス / 名古屋→豊橋 ${d0.toyohashi}マス / 名古屋→伊良湖 ${d0.irago}マス`);
+const kinds = {};
+B.links.forEach((l) => { kinds[l.kind] = (kinds[l.kind] || 0) + 1; });
+note('道の種類 ' + JSON.stringify(kinds));
+const deg = {}; A.EDGES.forEach((e) => { deg[e[0]] = (deg[e[0]] || 0) + 1; deg[e[1]] = (deg[e[1]] || 0) + 1; });
 A.STATIONS.forEach((s) => { if (!deg[s.id]) warn('路線につながっていない駅: ' + s.name); });
 
-// 8. ラベル
-const bad = A.STATIONS.filter((s) => B.labels[s.id].score >= 5).map((s) => s.name + ':' + B.labels[s.id].score.toFixed(0));
-note('駅名ラベルが重なりぎみの駅: ' + (bad.join(' ') || 'なし'));
+// 5. 行き方が複数ある駅（橋＝切るとつながらなくなる道、をのぞいた輪の中にある駅）が7割以上
+{
+  const tin = {}, low = {}, bridges = new Set(); let t = 0;
+  (function dfs(v, p) {
+    tin[v] = low[v] = ++t;
+    for (const u of B.byId[v].adj) {
+      if (u === p) continue;
+      if (tin[u]) low[v] = Math.min(low[v], tin[u]);
+      else { dfs(u, v); low[v] = Math.min(low[v], low[u]); if (low[u] > tin[v]) bridges.add(v < u ? v + '|' + u : u + '|' + v); }
+    }
+  })('nagoya', null);
+  const comp = {}; let c = 0;
+  B.nodes.forEach((n) => {
+    if (comp[n.id] !== undefined) return;
+    const q = [n.id]; comp[n.id] = c;
+    for (let i = 0; i < q.length; i++) for (const u of B.byId[q[i]].adj) {
+      const k = q[i] < u ? q[i] + '|' + u : u + '|' + q[i];
+      if (bridges.has(k) || comp[u] !== undefined) continue;
+      comp[u] = c; q.push(u);
+    }
+    c++;
+  });
+  const multi = A.STATIONS.filter((s) => comp[s.id] === comp.nagoya).length;
+  note(`2通り以上の行き方がある駅 ${multi}/100`);
+  if (multi < 70) warn('行き方が複数ある駅が7割に届かない: ' + multi);
+}
+
+// 6. ラベル
+const bad = A.STATIONS.filter((s) => B.labels[s.id].score >= 60).map((s) => s.name + ':' + B.labels[s.id].score.toFixed(0));
+note('駅名ラベルがほかの駅や海岸とぶつかる駅: ' + (bad.join(' ') || 'なし'));
 
 console.log(problems ? `\n問題 ${problems} 件` : '\n盤面チェック OK');
 process.exitCode = problems ? 1 : 0;

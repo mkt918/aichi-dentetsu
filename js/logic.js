@@ -400,10 +400,19 @@
       if (slow) total = 1;
       await drv.emit({ t: 'roll', p: idx, dice, total, slow });
       let remaining = total;
+      // サイコロの目で止まれる場所のうち、行きたい所をえらぶ（えらべない／1か所だけなら、そのまま進む）
+      let forced = null, fi = 0;
+      if (drv.target && total > 0) {
+        const reach = B.reachable(p.pos, p.prev, total, s.dest);
+        const endpoints = Array.from(reach.keys());
+        let pick = endpoints.length === 1 ? endpoints[0] : await drv.target(s, idx, { endpoints, total });
+        if (pick && reach.has(pick)) forced = B.pathTo(p.pos, p.prev, total, s.dest, pick);
+      }
       while (remaining > 0) {
         const opts = B.stepOptions(p.pos, p.prev);
         let next = opts[0];
-        if (opts.length > 1) {
+        if (forced && fi < forced.length && opts.includes(forced[fi])) next = forced[fi++];
+        else if (opts.length > 1) {
           const pick = await drv.branch(s, idx, { options: opts, remaining });
           if (opts.includes(pick)) next = pick;
         }

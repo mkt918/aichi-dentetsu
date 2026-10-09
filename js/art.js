@@ -171,7 +171,7 @@
 
     // 木・山・家のかざり（駅・ラベル・路線をよけて置く）
     const segs = [];
-    B.edges.forEach((e) => { for (let i = 0; i < e.chain.length - 1; i++) { const a = B.byId[e.chain[i]], b = B.byId[e.chain[i + 1]]; segs.push([a.x, a.y, b.x, b.y]); } });
+    B.links.forEach((l) => { const a = B.byId[l.a], b = B.byId[l.b]; segs.push([a.x, a.y, b.x, b.y]); });
     function nearRail(x, y, lim) {
       for (const [ax, ay, bx, by] of segs) {
         const dx = bx - ax, dy = by - ay;
@@ -182,7 +182,7 @@
     }
     function nearStation(x, y) {
       return A.STATIONS.some((s) => {
-        if (Math.hypot(x - s.x, y - s.y) < 34 * f) return true;
+        if (Math.hypot(x - s.x, y - s.y) < 60) return true;
         const r = B.labels[s.id].rect;
         return x > r[0] - 10 && x < r[2] + 10 && y > r[1] - 10 && y < r[3] + 10;
       });
@@ -203,7 +203,7 @@
     for (let k = 0; k < want * 80 && placed.length < want; k++) {
       const x = x0 + rnd() * (x1 - x0), y = y0 + rnd() * (y1 - y0);
       if (!insidePoly(x, y, O) || distToCoast(x, y) < 16 * f) continue;
-      if (nearStation(x, y) || nearRail(x, y, 18 * f)) continue;
+      if (nearStation(x, y) || nearRail(x, y, 42)) continue;
       if (placed.some((p) => Math.hypot(p[0] - x, p[1] - y) < 30 * f)) continue;
       placed.push([x, y]);
       const mountainZone = x > x0 + (x1 - x0) * 0.62 && y < y0 + (y1 - y0) * 0.6;
@@ -239,6 +239,7 @@
       <defs>
         <pattern id="pWave" width="${(64 * f).toFixed(1)}" height="${(34 * f).toFixed(1)}" patternUnits="userSpaceOnUse"><path d="M0 ${(17 * f).toFixed(1)}q${(16 * f).toFixed(1)} ${(-11 * f).toFixed(1)} ${(32 * f).toFixed(1)} 0t${(32 * f).toFixed(1)} 0" class="m-wave" style="stroke-width:${(2.2 * f).toFixed(1)}"/></pattern>
         <pattern id="pDot" width="${(22 * f).toFixed(1)}" height="${(22 * f).toFixed(1)}" patternUnits="userSpaceOnUse"><circle cx="${(5 * f).toFixed(1)}" cy="${(6 * f).toFixed(1)}" r="${(1.3 * f).toFixed(1)}" class="m-dot"/><circle cx="${(16 * f).toFixed(1)}" cy="${(15 * f).toFixed(1)}" r="${f.toFixed(1)}" class="m-dot"/></pattern>
+        <pattern id="pGrid" x="${-A.GRID / 2}" y="${-A.GRID / 2}" width="${A.GRID}" height="${A.GRID}" patternUnits="userSpaceOnUse"><path d="M0 0H${A.GRID}M0 0V${A.GRID}" class="m-grid"/></pattern>
       </defs>
       <rect x="${(x0 - 3000).toFixed(0)}" y="${(y0 - 3000).toFixed(0)}" width="${(x1 - x0 + 6000).toFixed(0)}" height="${(y1 - y0 + 6000).toFixed(0)}" class="m-sea"/>
       <rect x="${(x0 - 3000).toFixed(0)}" y="${(y0 - 3000).toFixed(0)}" width="${(x1 - x0 + 6000).toFixed(0)}" height="${(y1 - y0 + 6000).toFixed(0)}" fill="url(#pWave)" opacity=".8"/>
@@ -249,6 +250,7 @@
       <path d="${landD}" class="m-shore" style="stroke-width:${(34 * f).toFixed(1)}"/>
       <path d="${landD}" class="m-land" style="stroke-width:${(3.5 * f).toFixed(1)}"/>
       <path d="${landD}" fill="url(#pDot)"/>
+      <path d="${landD}" fill="url(#pGrid)"/>
       ${rivers}${islands}
       ${deco}
       ${label([300, 190], '尾 張', 64, 0, 'm-region')}${label([760, 500], '三 河', 76, 0, 'm-region')}

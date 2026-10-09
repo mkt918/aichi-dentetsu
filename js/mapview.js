@@ -57,18 +57,21 @@
       const gMark = svgEl('g', { id: 'layer-marks' });
       const gPieces = svgEl('g', { id: 'layer-pieces' });
       const gFx = svgEl('g', { id: 'layer-fx' });
-      [bg, gEdges, gRoute, gLab, gSq, gSt, gMark, gPieces, gFx].forEach((g) => svg.appendChild(g));
+      [bg, gEdges, gRoute, gSq, gSt, gLab, gMark, gPieces, gFx].forEach((g) => svg.appendChild(g));
       this.gRoute = gRoute; this.gFx = gFx; this.gPieces = gPieces; this.gMark = gMark;
 
-      B.edges.forEach((e) => {
-        const cls = e.sea ? 'rail rail--sea' : e.bridge ? 'rail rail--bridge' : 'rail';
-        gEdges.appendChild(svgEl('path', { d: e.d, class: cls + '-bed' }));
-        gEdges.appendChild(svgEl('path', { d: e.d, class: cls + '-line' }));
+      // 太い道（国道・高速道路）が下、線路が上になるように、種類ごとに重ねる
+      ['pref', 'national', 'expressway', 'rail', 'bridge', 'sea'].forEach((kind) => {
+        B.links.filter((l) => l.kind === kind).forEach((l) => {
+          const a = B.byId[l.a], b = B.byId[l.b];
+          gEdges.appendChild(svgEl('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'lk lk-' + kind + '-bed' }));
+          gEdges.appendChild(svgEl('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'lk lk-' + kind + '-line' }));
+        });
       });
 
       B.nodes.forEach((n) => {
         if (n.type === 'station') return;
-        const g = svgEl('g', { class: 'sq sq-' + n.type, transform: 'translate(' + n.x + ' ' + n.y + ')', 'data-id': n.id });
+        const g = svgEl('g', { class: 'sq sq-' + n.type, transform: 'translate(' + n.x + ' ' + n.y + ') scale(' + A.SQUARE_SCALE.toFixed(3) + ')', 'data-id': n.id });
         g.appendChild(svgEl('rect', { x: -9.5, y: -9.5, width: 19, height: 19, rx: 3.5, class: 'sq-c' }));
         let glyph = '';
         if (n.type === 'blue') glyph = '<path d="M-4.5 0h9M0 -4.5v9" class="sq-g"/>';
@@ -81,16 +84,16 @@
 
       A.STATIONS.forEach((s) => {
         const iconName = s.props.length ? s.props.reduce((a, b) => (b.price > a.price ? b : a)).icon : 'card';
-        const g = svgEl('g', { class: 'st' + (s.card ? ' st-card' : ''), transform: 'translate(' + s.x + ' ' + s.y + ')', 'data-id': s.id, tabindex: '-1' });
+        const g = svgEl('g', { class: 'st' + (s.card ? ' st-card' : ''), transform: 'translate(' + s.x + ' ' + s.y + ') scale(' + A.STATION_SCALE.toFixed(3) + ')', 'data-id': s.id, tabindex: '-1' });
         g.appendChild(svgEl('rect', { x: -29, y: -29, width: 58, height: 58, rx: 15, class: 'st-halo' }));
         g.appendChild(svgEl('rect', { x: -19.5, y: -19.5, width: 39, height: 39, rx: 8, class: 'st-base' }));
         g.appendChild(svgEl('g', { class: 'st-icon', transform: 'translate(-10.5 -10.5) scale(.875)' }, Art.iconInner(iconName)));
         if (s.shop) g.appendChild(svgEl('g', { class: 'st-shop', transform: 'translate(-19 -19)' }, '<circle r="9.5" class="st-shop-bg"/><g transform="translate(-6 -6) scale(.5)" class="st-shop-ic">' + Art.iconInner('card') + '</g>'));
         const lb = B.labels[s.id], n = s.props.length;
         // 駅名と物件の持ち主の印は、マスより下の層に描く（マスが文字で隠れないように）
-        const lab = svgEl('g', { class: 'st-label', transform: 'translate(' + s.x + ' ' + s.y + ')' });
-        lab.appendChild(svgEl('text', { class: 'st-name', x: lb.tx - s.x, y: lb.ty - s.y, 'text-anchor': lb.anchor }, UI.esc(s.name)));
-        const pips = svgEl('g', { class: 'st-pips', transform: 'translate(' + (lb.px - s.x) + ' ' + (lb.py - s.y) + ')' });
+        const lab = svgEl('g', { class: 'st-label', transform: 'translate(' + s.x + ' ' + s.y + ') scale(' + A.STATION_SCALE.toFixed(3) + ')' });
+        lab.appendChild(svgEl('text', { class: 'st-name', x: lb.ltx, y: lb.lty, 'text-anchor': lb.anchor }, UI.esc(s.name)));
+        const pips = svgEl('g', { class: 'st-pips', transform: 'translate(' + lb.lpx + ' ' + lb.lpy + ')' });
         s.props.forEach((p, i) => {
           const px = lb.anchor === 'middle' ? (i - (n - 1) / 2) * 12.5 - 5 : lb.anchor === 'start' ? i * 12.5 : -(n - i) * 12.5 + 2.5;
           pips.appendChild(svgEl('rect', { class: 'pip', 'data-prop': p.id, x: px, y: -3, width: 10, height: 6, rx: 3 }));
@@ -115,7 +118,7 @@
           '<g class="piece-body"><circle class="piece-ring" r="21" cy="-23"/><g transform="translate(0 -23) scale(.78)">' + Art.characterInner(p.char) + '</g></g>' +
           '<g class="piece-god" transform="translate(15 -42) scale(.5)">' + Art.godInner() + '</g>' +
           '<g class="piece-count" transform="translate(0 -56)"><rect x="-13" y="-11" width="26" height="22" rx="11"/><text y="5" text-anchor="middle">0</text></g>';
-        g.innerHTML = inner;
+        g.innerHTML = '<g transform="scale(1.35)">' + inner + '</g>';
         gPieces.appendChild(g);
         return { g, x: 0, y: 0, node: p.pos, body: g.querySelector('.piece-body'), count: g.querySelector('.piece-count'), countText: g.querySelector('.piece-count text'), god: g.querySelector('.piece-god') };
       });
@@ -138,7 +141,7 @@
         });
       });
       const d = B.byId[state.dest];
-      this.flag.setAttribute('transform', 'translate(' + (d.x + 14) + ' ' + (d.y - 22) + ')');
+      this.flag.setAttribute('transform', 'translate(' + (d.x + 20) + ' ' + (d.y - 30) + ') scale(1.35)');
       this.layoutPieces(state, false);
       state.players.forEach((p, i) => { this.pieces[i].god.classList.toggle('is-on', !!p.god); });
       this.drawRoute(state);
@@ -155,7 +158,7 @@
       const same = state.players.filter((p) => this.pieces[p.id].node === nodeId).map((p) => p.id);
       const k = same.indexOf(i), n = same.length;
       if (n <= 1) return [0, 0];
-      const R = n === 2 ? 11 : 13;
+      const R = (n === 2 ? 11 : 13) * 1.6;
       const a = (Math.PI * 2 * k) / n - Math.PI / 2 + (n === 2 ? Math.PI / 2 : 0);
       return [Math.cos(a) * R, Math.sin(a) * R * 0.7];
     }
@@ -221,7 +224,7 @@
     /** マスの上にお金などの数字をふわっと出す */
     pop(nodeId, text, kind) {
       const n = B.byId[nodeId];
-      const t = svgEl('text', { x: n.x, y: n.y - 46, class: 'pop pop--' + (kind || 'good'), 'text-anchor': 'middle' });
+      const t = svgEl('text', { x: n.x, y: n.y - 80, class: 'pop pop--' + (kind || 'good'), 'text-anchor': 'middle' });
       t.textContent = text;
       this.gFx.appendChild(t);
       setTimeout(() => t.remove(), 1700);
@@ -259,7 +262,7 @@
         const rings = options.map((id) => {
           const n = B.byId[id];
           const g = svgEl('g', { class: 'pick', transform: 'translate(' + n.x + ' ' + n.y + ')', 'data-id': id });
-          g.innerHTML = '<rect x="-21" y="-21" width="42" height="42" rx="9" class="pick-ring"/><circle r="32" class="pick-hit"/><path d="M-5 -3l5 5 5-5" class="pick-arrow"/>';
+          g.innerHTML = '<rect x="-29" y="-29" width="58" height="58" rx="12" class="pick-ring"/><circle r="32" class="pick-hit"/><path d="M-7 -4l7 7 7-7" class="pick-arrow"/>';
           this.gFx.appendChild(g);
           return g;
         });
@@ -308,7 +311,7 @@
     /** 画面の広さに合わせた「ちょうどよいズーム」 */
     comfyWidth() {
       const r = this.stage.getBoundingClientRect();
-      return clamp(r.width < 560 ? 430 : r.width < 900 ? 560 : 640, ZOOM_MIN, ZOOM_MAX);
+      return clamp(r.width < 560 ? 560 : r.width < 900 ? 720 : 860, ZOOM_MIN, ZOOM_MAX);
     }
     focusNode(id, w, ms) {
       if (!this.follow) return;

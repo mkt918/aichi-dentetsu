@@ -5,7 +5,7 @@
   const A = (root.Aichi = root.Aichi || {});
 
   /** 世界の拡大率。デザイン空間(1200x1000)を何倍にして使うか */
-  const K = 3.6;
+  const K = 2.6;
   /** 経度・緯度 → デザイン空間（愛知県がちょうど入る投影） */
   const proj = (lon, lat) => [(lon - 136.6) * 900, (35.45 - lat) * 1050];
 
@@ -13,19 +13,38 @@
   function rateFor(price, fame) {
     const base = price <= 500 ? 70 : price <= 1000 ? 50 : price <= 2000 ? 30 : price <= 3000 ? 18 : price <= 5000 ? 10 : price <= 8000 ? 5 : price <= 15000 ? 3 : price <= 30000 ? 2 : 1;
     const mul = fame >= 3 ? 1.3 : fame === 2 ? 1 : 0.8;
-    return Math.max(1, Math.round(base * mul));
+    const r = Math.max(1, Math.round(base * mul));
+    return r >= 10 ? Math.max(10, Math.round(r / 5) * 5) : r; // 10%以上は5%刻み
+  }
+
+  // ---- 有名な場所・お店・工場ほど、物件の値段を高くする（元の値段 × 種類 × 名物度） ----
+  const ICON_MULT = { castle: 4, factory: 5, airport: 4, tower: 3, shrine: 3, park: 2.5, museum: 2, onsen: 2, sea: 2, train: 2, festival: 1.5, mountain: 1.5, leaf: 1.5, food: 1, craft: 1, pottery: 1, farm: 1, fish: 1, bird: 1 };
+  const PRICE_FIXED = { '名古屋城': 2000000 }; // 最高額は200億円（名古屋城）
+  function niceRound(p) { const mag = Math.pow(10, Math.max(0, Math.floor(Math.log10(p)) - 1)); return Math.round(p / mag) * mag; }
+  function finalPrice(name, icon, price, fame) {
+    if (PRICE_FIXED[name]) return PRICE_FIXED[name];
+    let m = (ICON_MULT[icon] || 1) * (fame >= 3 ? 1.5 : fame === 2 ? 1.2 : 1);
+    if (icon === 'food' && fame >= 3) m = 2; // 有名店
+    return price < 500 ? price : niceRound(price * m);
   }
 
   // 地域: nagoya=名古屋 / owari=尾張 / chita=知多 / nishimikawa=西三河 / higashimikawa=東三河 / atsumi=渥美
   const REGION = { nagoya: '名古屋', owari: '尾張', chita: '知多', nishimikawa: '西三河', higashimikawa: '東三河', atsumi: '渥美' };
 
+  const OV = A.OVERRIDES || { pos: {}, edges: null, props: {} };
+  // 物件の一覧 [名前, アイコン, 価格, 名物度]。エディターの上書きがあればそれを使う。安い順に並べる
+  const itemsOf = (r) => {
+    const ov = OV.props && OV.props[r.id];
+    const list = ov ? ov.map((it) => it.slice()) : r.items.map((it) => [it[0], it[1], finalPrice(it[0], it[1], it[2], it[3]), it[3]]);
+    return list.map((it, i) => ({ it, i })).sort((a, b) => a.it[2] - b.it[2] || a.i - b.i).map((o) => o.it);
+  };
   const STATIONS = A.RAW_STATIONS.map((r) => ({
     id: r.id, name: r.name, region: r.region, lon: r.lon, lat: r.lat, desc: r.desc,
     shop: !!r.shop,     // カード売り場がある
-    card: !!r.card,     // 物件のないカード駅（止まるとカードがもらえる）
+    card: !!r.card && !(OV.props && OV.props[r.id] && OV.props[r.id].length), // 物件のないカード駅（止まるとカードがもらえる）
     island: !!r.island, // 島の駅（海の上に置く）
     pin: !!r.pin,       // 位置を動かさない駅
-    props: r.items.map((it, i) => ({ id: r.id + '-' + i, station: r.id, name: it[0], icon: it[1], price: it[2], fame: it[3], rate: rateFor(it[2], it[3]) })),
+    props: itemsOf(r).map((it, i) => ({ id: r.id + '-' + i, station: r.id, name: it[0], icon: it[1], price: it[2], fame: it[3], rate: rateFor(it[2], it[3]) })),
   }));
 
   // ---- 路線: 駅の並び（隣どうしを線路でつなぐ）。実在の路線をもとに、わかりやすく作り直したもの ----
@@ -79,22 +98,61 @@
     ['isshiki', 'sakushima', { sea: true, n: 2 }],
   ];
 
-  /** 路線と特別な区間から、隣どうしの区間の一覧を作る（[駅A, 駅B, オプション]） */
-  const EDGES = (() => {
-    const seen = new Set(), out = [];
-    const add = (a, b, opt) => {
-      const key = [a, b].sort().join('|');
-      if (seen.has(key)) return;
-      seen.add(key);
-      out.push(opt ? [a, b, opt] : [a, b]);
-    };
-    LINES.forEach(([, stops]) => { for (let i = 0; i < stops.length - 1; i++) add(stops[i], stops[i + 1]); });
-    SPECIAL.forEach(([a, b, opt]) => add(a, b, opt));
-    return out;
-  })();
+  // 道路: [名前, 種類, 駅の並び]。種類 expressway=高速道路 / national=国道 / pref=県道
+  const ROADS = [
+    ['東名高速道路', 'expressway', ['toyokawa', 'okazaki', 'toyota', 'nagakute', 'yagoto', 'kasugai', 'komaki']],
+    ['名神高速道路', 'expressway', ['komaki', 'ichinomiya', 'kisogawa']],
+    ['新東名高速道路', 'expressway', ['shinshiro', 'tsukude', 'okazaki']],
+    ['伊勢湾岸自動車道', 'expressway', ['toyota', 'toyoake', 'tokai', 'nagoyakou', 'yatomi']],
+    ['知多半島道路', 'expressway', ['tokai', 'chita', 'handa', 'mihama', 'utsumi', 'morozaki']],
+    ['東海環状自動車道', 'expressway', ['toyota', 'seto']],
+    ['国道1号', 'national', ['nagoya', 'atsuta', 'arimatsu', 'toyoake', 'chiryu', 'okazaki', 'goyu', 'toyohashi']],
+    ['国道19号', 'national', ['nagoya', 'ozone', 'kasugai', 'kozoji']],
+    ['国道22号', 'national', ['nagoya', 'kiyosu', 'inazawa', 'ichinomiya', 'kisogawa']],
+    ['国道41号', 'national', ['nagoya', 'komaki', 'inuyama']],
+    ['国道153号', 'national', ['nagakute', 'toyota', 'asuke', 'asahi', 'inabu']],
+    ['国道151号', 'national', ['toyohashi', 'shinshiro', 'shitara', 'toei']],
+    ['国道155号', 'national', ['toyota', 'chiryu', 'kariya', 'takahama', 'hekinan']],
+    ['国道259号', 'national', ['toyohashi', 'tahara', 'fukue', 'akabane', 'koiji', 'irago']],
+    ['国道23号', 'national', ['yatomi', 'nagoyakou']],
+    ['国道23号(蒲郡バイパス)', 'national', ['okazaki', 'kota', 'gamagori', 'mitani', 'kozakai', 'toyohashi']],
+    ['国道247号', 'national', ['hekinan', 'handa', 'tokoname']],
+    ['県道', 'pref', ['seto', 'kozoji']],
+    ['県道', 'pref', ['inuyamayuen', 'konan']],
+    ['県道', 'pref', ['daijuji', 'sanage']],
+    ['県道', 'pref', ['nishio', 'kota']],
+  ];
 
-  // ---- 途中マスの数（種類ごと）。赤と青は、前の版の3倍。黄と紫は前の版と同じ数 ----
-  const SQUARE_QUOTA = { yellow: 38, event: 19, red: 132, blue: 231 }; // 合計420
+  /** 路線・特別な区間・道路から、駅と駅の区間の一覧を作る（[駅A, 駅B, {kinds: 種類のならび, sea, bridge}]）。同じ区間は1本にまとめる */
+  const EDGES = (() => {
+    const map = new Map(), order = [];
+    const add = (a, b, opt, kind) => {
+      const key = [a, b].sort().join('|');
+      let e = map.get(key);
+      if (!e) { e = { a, b, opt: {}, kinds: new Set() }; map.set(key, e); order.push(e); }
+      e.kinds.add(kind);
+      if (opt) Object.assign(e.opt, opt);
+    };
+    const pairs = (stops, fn) => { for (let i = 0; i < stops.length - 1; i++) fn(stops[i], stops[i + 1]); };
+    LINES.forEach(([, stops]) => pairs(stops, (x, y) => add(x, y, null, 'rail')));
+    SPECIAL.forEach(([x, y, opt]) => add(x, y, opt, opt.sea ? 'sea' : 'bridge'));
+    ROADS.forEach(([, kind, stops]) => pairs(stops, (x, y) => add(x, y, null, kind)));
+    return order.map((e) => [e.a, e.b, Object.assign({}, e.opt, { kinds: Array.from(e.kinds) })]);
+  })();
+  const DEFAULT_EDGES = EDGES.map((e) => e.slice());
+  // マップエディターで変えた路線があれば差しかえる（存在しない駅をふくむものは捨てる）
+  if (OV.edges && Array.isArray(OV.edges) && OV.edges.length) {
+    const ids = new Set(STATIONS.map((s) => s.id));
+    const ok = OV.edges.filter((e) => e && ids.has(e[0]) && ids.has(e[1]));
+    if (ok.length) { EDGES.length = 0; ok.forEach((e) => EDGES.push([e[0], e[1], Object.assign({ kinds: ['rail'] }, e[2] || {})])); }
+  }
+
+  // ---- 地図は四角いグリッドで区切る。駅も道も、グリッドの1マスにぴったり入れる ----
+  const GRID = 60;                         // 1マスの大きさ（画面の px）
+  const SQUARE_SCALE = (GRID * 0.8) / 19;  // 途中マス（もとの絵は19px）を、1マスの8割に広げる倍率
+  const STATION_SCALE = (GRID * 0.94) / 39; // 駅（もとの絵は39px）をほぼ1マスに広げる倍率
+  // 途中マスの種類の割合。赤と青は、前の前の版の3倍の数をめやすに、いまは割合で決める
+  const SQUARE_MIX = { yellow: 0.09, event: 0.045, red: 0.31 }; // のこりは青
 
   // ---- カード ----
   // kind: dice(サイコロ変更) / warp / target(相手指定) / self / money / sale / buyout / stay
@@ -157,5 +215,5 @@
     [58, 380], [58, 285], [85, 200], [125, 130], [175, 80],
   ];
 
-  Object.assign(A, { K, proj, rateFor, REGION, STATIONS, LINES, EDGES, SQUARE_QUOTA, CARDS, HAND_LIMIT, EVENTS, CHARS, OUTLINE_REAL });
+  Object.assign(A, { K, proj, rateFor, finalPrice, ICON_MULT, REGION, STATIONS, LINES, ROADS, EDGES, DEFAULT_EDGES, GRID, SQUARE_SCALE, STATION_SCALE, SQUARE_MIX, CARDS, HAND_LIMIT, EVENTS, CHARS, OUTLINE_REAL });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

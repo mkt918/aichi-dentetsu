@@ -61,6 +61,9 @@
   S.forEach((s, i) => {
     s.bx = Math.round(pos[i][0] * 10) / 10; s.by = Math.round(pos[i][1] * 10) / 10;
     s.x = Math.round(s.bx * K); s.y = Math.round(s.by * K);
+    s.def = [s.x, s.y]; // 自動配置の位置（エディターの「元に戻す」用）
+    const ov = A.OVERRIDES && A.OVERRIDES.pos && A.OVERRIDES.pos[s.id];
+    if (ov && isFinite(ov[0]) && isFinite(ov[1])) { s.x = Math.round(ov[0]); s.y = Math.round(ov[1]); }
   });
   const OUTLINE_BASE = A.OUTLINE_REAL.map(warpPt);
   const OUTLINE = OUTLINE_BASE.map((p) => [Math.round(p[0] * K), Math.round(p[1] * K)]);
