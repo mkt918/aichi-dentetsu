@@ -691,6 +691,15 @@ small { font-size: var(--text-xs); }
 .ed-count { justify-self: end; color: var(--color-ink-2); }
 .ed-status { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip--warn { background: var(--color-gold-soft); color: var(--color-accent-3-deep); }
+.chip--go { border: 0; font: inherit; cursor: pointer; }
+.chip--go:hover { background: var(--color-accent); }
+/* エディター: 問題のあるマスの丸印 */
+.ed-bads { pointer-events: none; }
+.ed-bad { fill: none; stroke-width: 5; stroke-dasharray: 7 5; animation: edBad 1.2s linear infinite; }
+.ed-bad--lost { stroke: var(--color-accent-3); }
+.ed-bad--near { stroke: var(--color-gold); }
+@keyframes edBad { to { stroke-dashoffset: -24; } }
+@media (prefers-reduced-motion: reduce) { .ed-bad { animation: none; } }
 .ed-conns { display: flex; flex-wrap: wrap; gap: 6px; }
 .ed-conn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: var(--radius-pill); background: var(--color-paper-2); }
 .ed-conn small { color: var(--color-ink-2); }

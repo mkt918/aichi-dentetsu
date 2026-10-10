@@ -68,7 +68,8 @@
   function problems() {
     const W = ed.W, cells = Object.values(W.map);
     const placed = new Set(cells.filter((c) => c[2] === 'S').map((c) => c[3]));
-    const out = { unplaced: allIds().filter((id) => !placed.has(id)), lost: 0, touch: [], near: 0, noProp: [], dupName: [] };
+    // spots: 問題のあるマスの場所 { lost: スタートからつながっていない / near: 駅のすぐとなりの止まるマス / touch: 近すぎる駅 }
+    const out = { unplaced: allIds().filter((id) => !placed.has(id)), lost: 0, touch: [], near: 0, noProp: [], dupName: [], spots: { lost: [], near: [], touch: [] } };
     const start = stationCell(W.start);
     if (start) {
       const seen = new Set([KEY(start[0], start[1])]), q = [start];
@@ -76,11 +77,12 @@
         const [x, y] = q[i];
         [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { const k = KEY(x + dx, y + dy); if (W.map[k] && !seen.has(k)) { seen.add(k); q.push(W.map[k]); } });
       }
-      out.lost = cells.length - seen.size;
-    } else out.lost = cells.length;
+      out.spots.lost = cells.filter((c) => !seen.has(KEY(c[0], c[1])));
+    } else out.spots.lost = cells.slice();
+    out.lost = out.spots.lost.length;
     cells.forEach((c) => {
-      if (c[2] !== 'S') { if (c[2] !== 't' && nearStation(c[0], c[1])) out.near++; return; }
-      around(c[0], c[1]).forEach((o) => { if (o[2] === 'S' && o[3] > c[3]) out.touch.push([c[3], o[3]]); });
+      if (c[2] !== 'S') { if (c[2] !== 't' && nearStation(c[0], c[1])) { out.near++; out.spots.near.push(c); } return; }
+      around(c[0], c[1]).forEach((o) => { if (o[2] === 'S' && o[3] > c[3]) { out.touch.push([c[3], o[3]]); out.spots.touch.push(c, o); } });
     });
     placed.forEach((i) => { if (!W.props[i] || !W.props[i].length) out.noProp.push(i); });
     // 同じ駅の中なら同じ名前の物件をいくつ並べてもよい（みかん畑を3つ、など）。ほかの駅と同じ名前はだめ
@@ -94,7 +96,7 @@
   function save() {
     const p = problems();
     if (!stationCell(ed.W.start)) { UI.alert('スタートの駅がありません', 'スタートの' + esc(nameOf(ed.W.start)) + '駅を盤面に置くか、「スタート」で別の駅をえらんでください。'); return false; }
-    if (p.lost) { UI.alert('つながっていないマスがあります', 'スタートの駅から線路でつながっていないマスが ' + p.lost + ' 個あります。消すか、線路でつないでください。'); return false; }
+    if (p.lost) { UI.alert('つながっていないマスがあります', 'スタートの駅から線路でつながっていないマスが ' + p.lost + ' 個あります。地図に<b>赤い丸</b>で示しています（下の「つながっていないマス」を押すと、その場所へ動きます）。消すか、線路でつないでください。'); return false; }
     if (p.noProp.length) { UI.alert('物件のない駅があります', esc(p.noProp.map(nameOf).join('、')) + '<br>物件を1つ以上入れてください。'); return false; }
     if (p.dupName.length) { UI.alert('物件の名前がかぶっています', esc(p.dupName.map(([n, s]) => '「' + n + '」(' + s.map(nameOf).join('・') + ')').join('、')) + '<br>ちがう名前にしてください。'); return false; }
     const W = ed.W;
@@ -252,16 +254,27 @@
       const cells = Object.values(ed.W.map);
       const cnt = { b: 0, r: 0, y: 0, e: 0, t: 0 }; cells.forEach((c) => { if (cnt[c[2]] != null) cnt[c[2]]++; });
       const chip = (ok, t) => h('span.chip' + (ok ? '' : '.chip--warn'), (ok ? '' : '! ') + t);
+      const goChip = (kind, t) => h('button.chip.chip--warn.chip--go.spot-' + kind, { type: 'button', title: '押すと、その場所へ地図が動きます', onclick: () => goSpot(kind) }, '! ' + t + ' ▸');
       status.append(...[chip(true, '駅 ' + cells.filter((c) => c[2] === 'S').length), chip(true, '青 ' + cnt.b), chip(true, '赤 ' + cnt.r), chip(true, 'カード ' + cnt.y), chip(true, 'イベント ' + cnt.e), chip(true, '線路だけ ' + cnt.t),
-        chip(!p.lost, p.lost ? 'つながっていないマス ' + p.lost : 'ぜんぶつながっています'),
-        p.unplaced.length ? chip(false, '置いていない駅 ' + p.unplaced.length) : null,
-        p.touch.length ? chip(false, 'となりあう駅 ' + p.touch.length + '組') : null,
-        p.near ? chip(false, '駅のすぐとなりの止まるマス ' + p.near) : null].filter(Boolean));
+        p.lost ? goChip('lost', 'つながっていないマス ' + p.lost) : chip(true, 'ぜんぶつながっています'),
+        p.unplaced.length ? h('button.chip.chip--warn.chip--go', { type: 'button', onclick: () => UI.alert('置いていない駅', esc(p.unplaced.map(nameOf).join('、')) + '<br>（置いていない駅はゲームに出ません。そのままでもかまいません）') }, '! 置いていない駅 ' + p.unplaced.length + ' ▸') : null,
+        p.touch.length ? goChip('touch', 'となりあう駅 ' + p.touch.length + '組') : null,
+        p.near ? goChip('near', '駅のすぐとなりの止まるマス ' + p.near) : null].filter(Boolean));
+      if (p.lost || p.touch.length || p.near) status.appendChild(h('small.hint', '地図の丸印が問題のあるマスです（赤=つながっていない、オレンジ=駅に近すぎる）。'));
     }
     const refreshAll = () => { draw(); refreshBar(); setMsg(); drawStatus(); };
+    // 問題のあるマスへ地図を動かす。同じチップを押すたびに、次の場所へ
+    const spotIdx = {};
+    function goSpot(kind) {
+      const list = problems().spots[kind];
+      if (!list.length) return;
+      const i = (spotIdx[kind] = ((spotIdx[kind] == null ? -1 : spotIdx[kind]) + 1) % list.length);
+      const c = list[i];
+      view.setCam({ cx: c[0] * G, cy: c[1] * G, w: Math.min(view.cam.w, 520) }, 400);
+    }
 
     // ---- 描画 ----
-    let gL, gC, view;
+    let gL, gC, gBad, view;
     const landC = new Map();
     const inPoly = (x, y) => { let c = false; const P = A.OUTLINE; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, yi] = P[i], [xj, yj] = P[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c; } return c; };
     const land = (x, y) => { const k = x + ',' + y; if (!landC.has(k)) landC.set(k, inPoly(x, y)); return landC.get(k); };
@@ -271,8 +284,8 @@
       const xs = A.OUTLINE.map((p) => p[0]), ys = A.OUTLINE.map((p) => p[1]);
       const box = [Math.min(...xs) - 200, Math.min(...ys) - 200, Math.max(...xs) + 200, Math.max(...ys) + 200];
       bg.appendChild(sv('rect', { x: box[0], y: box[1], width: box[2] - box[0], height: box[3] - box[1], fill: 'url(#pEdGrid)' }));
-      gL = sv('g'); gC = sv('g');
-      svg.append(bg, gL, gC);
+      gL = sv('g'); gC = sv('g'); gBad = sv('g', { class: 'ed-bads' });
+      svg.append(bg, gL, gC, gBad);
       drawCells();
     }
     function drawCells() {
@@ -303,6 +316,12 @@
           gC.appendChild(g);
         }
       });
+      // 問題のあるマスに丸印（つながっていない=赤、駅に近すぎる=オレンジ）
+      gBad.innerHTML = '';
+      const sp = problems().spots, mark = new Map();
+      sp.near.concat(sp.touch).forEach((c) => mark.set(KEY(c[0], c[1]), 'near'));
+      sp.lost.forEach((c) => mark.set(KEY(c[0], c[1]), 'lost'));
+      mark.forEach((kind, k) => { const [x, y] = k.split(',').map(Number); gBad.appendChild(sv('circle', { cx: x * G, cy: y * G, r: G * 0.62, class: 'ed-bad ed-bad--' + kind })); });
     }
 
     // ---- タップ（ドラッグ・ピンチは MapView が地図の移動・拡大に使う） ----
