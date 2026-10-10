@@ -11,7 +11,6 @@ let bought = [], props = 0;
 (async () => {
   for (let g = 0; g < games; g++) {
     const s = L.newGame({ years, players: [1, 2, 3].map((lv, i) => ({ type: 'cpu', level: 2, char: i })) }, 300 + g);
-    const before = {};
     const drv = {
       emit: async (e) => {
         const y = L.calendar(s).year;
@@ -21,7 +20,7 @@ let bought = [], props = 0;
       },
       menu: async (st, i) => AI.brain.menu(st, i), branch: async (st, i, c) => AI.brain.branch(st, i, c),
       discard: async (st, i, c) => AI.brain.discard(st, i, c), cardShop: async (st, i, x) => AI.brain.cardShop(st, i, x),
-      shop: async (st, i, x) => { const n0 = Object.keys(st.owners).length; const c0 = st.players[i].cash; await AI.brain.shop(st, i, x); const spent = c0 - st.players[i].cash; if (spent > 0) { add(L.calendar(st).year, '物件購入', -spent); } void n0; },
+      shop: async (st, i, x) => { const c0 = st.players[i].cash; await AI.brain.shop(st, i, x); const spent = c0 - st.players[i].cash; if (spent > 0) { add(L.calendar(st).year, '物件購入', -spent); } },
     };
     while (!s.finished) {
       await L.runTurn(s, drv);
@@ -32,7 +31,6 @@ let bought = [], props = 0;
     Object.keys(s.owners).forEach((id) => { bought.push(L.PROP[id].price); });
     props += Object.keys(s.owners).length;
     s.players.forEach((p) => add('最終', '資産', L.assets(s, p.id)));
-    void before;
   }
   const n = games * 3;
   Object.keys(sum).forEach((y) => {

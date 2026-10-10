@@ -1,10 +1,12 @@
 /* あいち電鉄 — 用意された盤面を作る（Node 専用）: node tools/genall.js
  * tools/genmap.js を動かし、js/mapdata.js に書き出す。県全体のマップと、地域をしぼった細かいマップ。
- * ONLY=nagoya,chita のようにIDをしぼると、そのマップだけ作り直し、ほかは今の js/mapdata.js のまま残す。 */
+ * ONLY=nagoya,chita のようにIDをしぼると、そのマップだけ作り直し、ほかは今の js/mapdata.js のまま残す（ONLY=none なら作り直さない）。
+ * どのマップも、最後に駅のまわりをあける（tools/spacing.js）。 */
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { space } = require('./spacing.js');
 
 const PRESETS = [
   { id: 'full', name: '愛知県', desc: '県の形も駅の位置も、実際の地図と同じ。名古屋の町なかは駅が少なめで、奥三河は遠い。', start: 'nagoya' },
@@ -45,8 +47,9 @@ function score(rows, start, loose) {
   return rows.filter((r) => r[2] === 'S' && seen.has(K(r[0], r[1]))).length - loose * 3;
 }
 const maps = PRESETS.map((p) => {
-  if (ONLY && !ONLY.has(p.id) && old[p.id]) return Object.assign({}, p, { cells: old[p.id].cells });
-  const env = Object.assign({}, process.env, { OUT: 'json', START: p.start });
+  const done = (cells) => { const r = space(cells); if (r.moved || r.dropped) console.log(p.name, '駅のまわりをあけた: ずらした', r.moved, 'なくした', r.dropped); return Object.assign({}, p, { cells: r.rows }); };
+  if (ONLY && !ONLY.has(p.id) && old[p.id]) return done(old[p.id].cells);
+  const env = Object.assign({}, process.env, { START: p.start });
   if (p.spec) env.SPEC = JSON.stringify(p.spec); else delete env.SPEC;
   if (p.bbox) env.BBOX = JSON.stringify(p.bbox); else delete env.BBOX;
   env.MAP_SCALE = String(p.scale || 1);
@@ -64,7 +67,7 @@ const maps = PRESETS.map((p) => {
   }
   const st = best.rows.filter((r) => r[2] === 'S').length;
   console.log(p.name, 'マス', best.rows.length, '駅', st, (p.tries ? '（' + p.tries + '通りから SEED=' + best.seed + '、2通り以上で行ける駅 ' + best.sc + '）' : ''), best.note);
-  return Object.assign({}, p, { cells: best.rows });
+  return done(best.rows);
 });
 
 const body = maps.map((m) => '    { id: ' + JSON.stringify(m.id) + ', name: ' + JSON.stringify(m.name) + ', desc: ' + JSON.stringify(m.desc) + ', start: ' + JSON.stringify(m.start) + (m.scale ? ', scale: ' + m.scale : '') + ', cells: [\n' +
@@ -72,5 +75,5 @@ const body = maps.map((m) => '    { id: ' + JSON.stringify(m.id) + ', name: ' + 
 const out = '/* あいち電鉄 — 盤面データ（tools/genall.js が作成）。エディターで作った盤面は localStorage に入る。\n' +
   ' * cells: [列, 行, 種類, 駅ID]  種類: S=駅 b=青(+) r=赤(-) y=カード e=イベント t=線路だけ（止まらない）\n' +
   ' * となりあう（上下左右の）マスどうしが、道でつながる。陸の外のマスは海路として描く。start はスタートの駅。 */\n' +
-  '(function (root) {\n  \'use strict\';\n  const A = (root.Aichi = root.Aichi || {});\n  A.MAPPRESETS = [\n' + body + '\n  ];\n  A.MAPDATA = A.MAPPRESETS[0].cells;\n})(typeof globalThis !== \'undefined\' ? globalThis : this);\n';
+  '(function (root) {\n  \'use strict\';\n  const A = (root.Aichi = root.Aichi || {});\n  A.MAPPRESETS = [\n' + body + '\n  ];\n})(typeof globalThis !== \'undefined\' ? globalThis : this);\n';
 fs.writeFileSync(path.join(__dirname, '..', 'js', 'mapdata.js'), out);

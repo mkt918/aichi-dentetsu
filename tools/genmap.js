@@ -1,6 +1,6 @@
-/* あいち電鉄 — 盤面の自動生成（Node 専用）: node tools/genmap.js
- * 駅の配置（layout.js）と路線（data.js の EDGES）から、グリッドの盤面を作って js/mapdata.js に書き出す。
- * ゲームは js/mapdata.js（とエディターで保存した盤面）だけを使う。ここを動かし直さないかぎり盤面は変わらない。
+/* あいち電鉄 — 盤面1つの自動生成（Node 専用。tools/genall.js が動かす）
+ * 駅の配置（layout.js）と路線（data.js の buildEdges）から、グリッドの盤面を作って標準出力に JSON で出す。
+ * ゲームは js/mapdata.js（とエディターで保存した盤面）だけを使う。genall.js を動かし直さないかぎり盤面は変わらない。
  *
  * 方針（見やすさ優先）
  *  - 駅どうしは上下左右に2マス以上あける。近い駅は、縦か横の並びにそろえる（線がまっすぐになる）。
@@ -8,8 +8,6 @@
  *  - 道どうしはくっつけない（となりのマスに別の道を通さない）。くっつくと勝手に分かれ道になるため。
  *  - 一本道のマスは1つおきに「止まるマス」にする（のこりは線路だけ）。分かれ道は必ず止まるマス。 */
 'use strict';
-const fs = require('fs');
-const path = require('path');
 ['stations', 'stationtext', 'overrides', 'data', 'layout'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi;
 const G = A.GRID;
@@ -274,7 +272,6 @@ const nb = (c) => D4.map(([dx, dy]) => cells.get(K(c.x + dx, c.y + dy))).filter(
 cells.forEach((c) => { if (c.t === '?' && nb(c).length !== 2) c.t = 'stop'; });
 const seen = new Set();
 cells.forEach((c) => {
-  if (c.t === '?' || c.t === 't' || c.t === 'stop' && false) return;
   if (c.t !== 'S' && c.t !== 'stop') return;
   nb(c).forEach((n0) => {
     if (n0.t !== '?' || seen.has(K(n0.x, n0.y) + '<' + K(c.x, c.y))) return;
@@ -308,21 +305,11 @@ stops.forEach((c) => {
   if (sw) { sw.t = c.t; c.t = 'b'; }
 });
 
-// ---------- 4. 書き出し ----------
-const list = Array.from(cells.values()).sort((u, v) => u.y - v.y || u.x - v.x);
-const rows = list.map((c) => (c.t === 'S' ? [c.x, c.y, 'S', c.st] : [c.x, c.y, c.t]));
-const cnt = {}; list.forEach((c) => { cnt[c.t] = (cnt[c.t] || 0) + 1; });
-const out = '/* あいち電鉄 — 盤面データ（tools/genmap.js が作成。エディターで保存した盤面があれば、そちらが優先）\n' +
-  ' * [列, 行, 種類, 駅ID]  種類: S=駅 b=青(+) r=赤(-) y=カード e=イベント t=線路だけ（止まらない）\n' +
-  ' * となりあう（上下左右の）マスどうしが、道でつながる。陸の外のマスは海路として描く。 */\n' +
-  '(function (root) {\n  \'use strict\';\n  const A = (root.Aichi = root.Aichi || {});\n  A.MAPDATA = [\n' +
-  rows.map((r) => '    ' + JSON.stringify(r)).join(',\n') + ',\n  ];\n})(typeof globalThis !== \'undefined\' ? globalThis : this);\n';
-// OUT=json のときは盤面を標準出力へ、注意やDBGの図は標準エラーへ出す（js/mapdata.js は書きかえない）
-const JSONOUT = process.env.OUT === 'json';
-const log = (...m) => (JSONOUT ? console.error : console.log)(...m);
-function report() {
-  if (fails.length) log('注意:', fails.join(' '));
-  if (!process.env.DBG) return;
+// ---------- 4. 書き出し（盤面は標準出力へ JSON で。注意やDBGの図は標準エラーへ。js/mapdata.js は genall.js が書く） ----------
+const rows = Array.from(cells.values()).sort((u, v) => u.y - v.y || u.x - v.x).map((c) => (c.t === 'S' ? [c.x, c.y, 'S', c.st] : [c.x, c.y, c.t]));
+const log = (...m) => console.error(...m);
+if (fails.length) log('注意:', fails.join(' '));
+if (process.env.DBG) {
   process.env.DBG.split(',').forEach((pair) => {
     const [a, b] = pair.split('-');
     const xs = [cell[a][0], cell[b][0]], ys = [cell[a][1], cell[b][1]];
@@ -331,7 +318,4 @@ function report() {
     for (let y = y0; y <= y1; y++) { let row = ''; for (let x = x0; x <= x1; x++) { const c = cells.get(K(x, y)); row += c ? (c.t === 'S' ? (c.st === a ? 'A' : c.st === b ? 'B' : '@') : c.t === 't' ? '-' : 'o') : isLand(x, y) ? '.' : '~'; } log(row); }
   });
 }
-if (JSONOUT) { report(); process.stdout.write(JSON.stringify(rows)); process.exit(0); }
-fs.writeFileSync(path.join(__dirname, '..', 'js', 'mapdata.js'), out);
-log('マス', list.length, JSON.stringify(cnt));
-report();
+process.stdout.write(JSON.stringify(rows));

@@ -146,7 +146,7 @@
       });
       const d = B.byId[state.dest];
       this.flag.setAttribute('transform', 'translate(' + (d.x + 12) + ' ' + (d.y - 16) + ') scale(0.8)');
-      this.layoutPieces(state, false);
+      this.layoutPieces(state);
       state.players.forEach((p, i) => { this.pieces[i].god.classList.toggle('is-on', !!p.god); });
       this.drawRoute(state);
     }
@@ -166,14 +166,13 @@
       const a = (Math.PI * 2 * k) / n - Math.PI / 2 + (n === 2 ? Math.PI / 2 : 0);
       return [Math.cos(a) * R, Math.sin(a) * R * 0.7];
     }
-    layoutPieces(state, animate) {
+    layoutPieces(state) {
       state.players.forEach((p, i) => {
         const pc = this.pieces[i];
         pc.node = p.pos;
         const n = B.byId[p.pos], [ox, oy] = this.offsetFor(state, i, p.pos);
         pc.x = n.x + ox; pc.y = n.y + oy;
         pc.g.setAttribute('transform', 'translate(' + pc.x.toFixed(1) + ' ' + pc.y.toFixed(1) + ')');
-        void animate;
       });
     }
 
@@ -216,7 +215,7 @@
       pc.g.classList.add('is-warping');
       await UI.sleep(380);
       pc.node = toId;
-      this.layoutPieces(state, false);
+      this.layoutPieces(state);
       this.focusNode(toId, null, 300);
       await UI.sleep(120);
       pc.g.classList.remove('is-warping');
@@ -338,10 +337,9 @@
     }
     zoomAt(cx, cy, f) {
       cancelAnimationFrame(this.camAnim);
-      const p = this.toWorld(cx, cy), h0 = this.cam.w * this.aspect();
+      const p = this.toWorld(cx, cy);
       const nw = clamp(this.cam.w * f, ZOOM_MIN, ZOOM_MAX), nh = nw * this.aspect();
       this.cam = { w: nw, cx: p.x - (p.u - 0.5) * nw, cy: p.y - (p.v - 0.5) * nh };
-      void h0;
       this.clampCam(); this.applyCam();
     }
     _bindInput() {

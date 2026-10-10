@@ -47,6 +47,9 @@
   const descOf = (id) => { const m = ed.W.meta[id]; if (m && m.desc != null) return m.desc; const d = stationDef(id); return d ? d.desc : ''; };
   const setMeta = (id, k, v) => { ed.W.meta[id] = Object.assign({}, ed.W.meta[id], { [k]: v }); markDirty(); };
   const stationCell = (id) => Object.values(ed.W.map).find((c) => c[2] === 'S' && c[3] === id);
+  // 駅のまわり8マス（ななめもふくむ）。駅どうし・駅と止まるマスは、このはんいに置かない
+  const around = (x, y) => { const out = []; for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) if (dx || dy) { const c = ed.W.map[KEY(x + dx, y + dy)]; if (c) out.push(c); } return out; };
+  const nearStation = (x, y, except) => around(x, y).some((c) => c[2] === 'S' && c[3] !== except);
   function markDirty() { ed.dirty = true; const b = $('#ed-save'); if (b) b.classList.add('is-dirty'); }
   function snapshot() { return JSON.stringify(ed.W); }
   function pushUndo() { ed.undo.push(snapshot()); if (ed.undo.length > 80) ed.undo.shift(); ed.redo = []; }
@@ -65,7 +68,7 @@
   function problems() {
     const W = ed.W, cells = Object.values(W.map);
     const placed = new Set(cells.filter((c) => c[2] === 'S').map((c) => c[3]));
-    const out = { unplaced: allIds().filter((id) => !placed.has(id)), lost: 0, touch: [], noProp: [], dupName: [] };
+    const out = { unplaced: allIds().filter((id) => !placed.has(id)), lost: 0, touch: [], near: 0, noProp: [], dupName: [] };
     const start = stationCell(W.start);
     if (start) {
       const seen = new Set([KEY(start[0], start[1])]), q = [start];
@@ -75,7 +78,10 @@
       }
       out.lost = cells.length - seen.size;
     } else out.lost = cells.length;
-    cells.forEach((c) => { if (c[2] === 'S' && W.map[KEY(c[0] + 1, c[1])] && W.map[KEY(c[0] + 1, c[1])][2] === 'S') out.touch.push([c[3], W.map[KEY(c[0] + 1, c[1])][3]]); if (c[2] === 'S' && W.map[KEY(c[0], c[1] + 1)] && W.map[KEY(c[0], c[1] + 1)][2] === 'S') out.touch.push([c[3], W.map[KEY(c[0], c[1] + 1)][3]]); });
+    cells.forEach((c) => {
+      if (c[2] !== 'S') { if (c[2] !== 't' && nearStation(c[0], c[1])) out.near++; return; }
+      around(c[0], c[1]).forEach((o) => { if (o[2] === 'S' && o[3] > c[3]) out.touch.push([c[3], o[3]]); });
+    });
     placed.forEach((i) => { if (!W.props[i] || !W.props[i].length) out.noProp.push(i); });
     const names = {};
     placed.forEach((i) => (W.props[i] || []).forEach((r) => { (names[r[0]] = names[r[0]] || []).push(i); }));
@@ -248,7 +254,8 @@
       status.append(...[chip(true, '駅 ' + cells.filter((c) => c[2] === 'S').length), chip(true, '青 ' + cnt.b), chip(true, '赤 ' + cnt.r), chip(true, 'カード ' + cnt.y), chip(true, 'イベント ' + cnt.e), chip(true, '線路だけ ' + cnt.t),
         chip(!p.lost, p.lost ? 'つながっていないマス ' + p.lost : 'ぜんぶつながっています'),
         p.unplaced.length ? chip(false, '置いていない駅 ' + p.unplaced.length) : null,
-        p.touch.length ? chip(false, 'となりあう駅 ' + p.touch.length + '組') : null].filter(Boolean));
+        p.touch.length ? chip(false, 'となりあう駅 ' + p.touch.length + '組') : null,
+        p.near ? chip(false, '駅のすぐとなりの止まるマス ' + p.near) : null].filter(Boolean));
     }
     const refreshAll = () => { draw(); refreshBar(); setMsg(); drawStatus(); };
 
@@ -306,10 +313,11 @@
     function railTap(x, y) {
       const W = ed.W, k = KEY(x, y), cur = W.map[k];
       if (cur && cur[2] === 'S') return; // 駅は駅編集で
+      const paint = nearStation(x, y) ? 't' : ed.paint; // 駅のまわりは「線路だけ」（駅と止まるマスのあいだを1マスあける）
       pushUndo();
-      if (!cur) W.map[k] = [x, y, ed.paint];
-      else if (cur[2] === ed.paint) delete W.map[k];
-      else W.map[k] = [x, y, ed.paint];
+      if (!cur) W.map[k] = [x, y, paint];
+      else if (cur[2] === paint) delete W.map[k];
+      else W.map[k] = [x, y, paint];
       markDirty(); drawCells(); drawStatus(); refreshBar();
     }
     function stationTap(x, y) {
@@ -319,10 +327,12 @@
       pickStation((id) => placeStation(id, x, y));
     }
     function placeStation(id, x, y) {
+      if (nearStation(x, y, id)) { UI.alert('駅が近すぎます', '駅と駅のあいだは1マス以上あけてください。'); return; }
       pushUndo();
       const W = ed.W, old = stationCell(id);
-      if (old) W.map[KEY(old[0], old[1])] = [old[0], old[1], 'b']; // もとの場所は青マスにする（いらなければ消す）
+      if (old) W.map[KEY(old[0], old[1])] = [old[0], old[1], 't']; // もとの場所は線路だけにする（いらなければ消す）
       W.map[KEY(x, y)] = [x, y, 'S', id];
+      around(x, y).forEach((c) => { if (c[2] !== 'S') c[2] = 't'; }); // まわりの止まるマスは線路だけにする
       ed.selSt = id; markDirty(); refreshAll();
     }
     function pickStation(done) {
@@ -354,7 +364,7 @@
         h('label', '名前 ', nm),
         h('label', '地域 ', regionSelect(id, (v) => setMeta(id, 'region', v))),
         h('button.btn.btn--sm.btn--lav', { type: 'button', onclick: () => { ed.tab = 'props'; ed.cur = id; render(); } }, '説明・物件を直す'),
-        h('button.btn.btn--sm.btn--coral.btn--soft', { type: 'button', onclick: () => { const c = stationCell(id); if (!c) return; pushUndo(); ed.W.map[KEY(c[0], c[1])] = [c[0], c[1], 'b']; ed.selSt = null; markDirty(); refreshAll(); } }, 'この駅を消す'),
+        h('button.btn.btn--sm.btn--coral.btn--soft', { type: 'button', onclick: () => { const c = stationCell(id); if (!c) return; pushUndo(); ed.W.map[KEY(c[0], c[1])] = [c[0], c[1], 't']; ed.selSt = null; markDirty(); refreshAll(); } }, 'この駅を消す'),
         h('button.btn.btn--sm.btn--outline', { type: 'button', onclick: () => { ed.selSt = null; refreshAll(); } }, 'えらぶのをやめる'));
     }
 
@@ -422,12 +432,16 @@
       const fm = h('select', { 'aria-label': '名物度' });
       FAME.forEach(([v, t]) => { const op = h('option', { value: v }, t); if (Number(r[3]) === v) op.selected = true; fm.appendChild(op); });
       const info = h('small.ed-rate');
+      // 利回り（%）: 空なら価格と名物度から自動。数字を入れると、その物件だけ手で決めた利回りになる
+      const rt = h('input.ed-in-rate', { type: 'number', min: 1, max: 999, step: 1, value: r[4] || '', 'aria-label': '利回り（%）。空なら自動' });
       const upd = () => {
-        const price = Number(pr.value) || 0, rate = A.rateFor(price, Number(fm.value));
+        const price = Number(pr.value) || 0, auto = A.rateFor(price, Number(fm.value)), rate = A.rateOf([0, 0, price, Number(fm.value), r[4]]);
         prTxt.textContent = yen(price);
-        info.textContent = '利回り ' + rate + '% ・ 年収 ' + yen(price * rate / 100);
+        rt.placeholder = '自動 ' + auto;
+        info.textContent = '利回り ' + rate + '%' + (r[4] ? '（手で決めた値）' : '（自動）') + ' ・ 年収 ' + yen(price * rate / 100);
         if (o.onChange) o.onChange();
       };
+      rt.addEventListener('input', () => { const v = Math.round(Number(rt.value)); if (v > 0) r[4] = v; else r.length = 4; markDirty(); upd(); });
       const setP = (v) => { pr.value = v; r[2] = v; markDirty(); upd(); };
       pr.addEventListener('input', () => { r[2] = Number(pr.value) || 0; markDirty(); upd(); });
       fm.addEventListener('change', () => { r[3] = Number(fm.value); markDirty(); upd(); });
@@ -440,7 +454,7 @@
         o.onDup ? h('button.ed-mini', { type: 'button', onclick: o.onDup }, '複製') : null,
         o.onDel ? h('button.ed-mini.is-del', { type: 'button', onclick: o.onDel }, '消す') : null,
         o.onGo ? h('button.ed-mini', { type: 'button', onclick: o.onGo }, o.goLabel) : null);
-      return h('div.ed-prow', h('div.ed-icobox', ico, sel), h('div.ed-name', nm, warn), priceBox, h('div.ed-fame', fm, info), acts);
+      return h('div.ed-prow', h('div.ed-icobox', ico, sel), h('div.ed-name', nm, warn), priceBox, h('div.ed-fame', fm, h('label.ed-rate-in', '利回り ', rt, '%'), info), acts);
     }
 
     const tabs = h('div.ed-pmodes',
@@ -490,7 +504,7 @@
         table.appendChild(h('div.ed-phead', h('span', 'アイコン'), h('span', '名前'), h('span', '価格（万円）'), h('span', '名物度・利回り'), h('span', '')));
         rows.forEach((r, i) => table.appendChild(propRow(r, {
           onChange: sum,
-          onDup: () => { pushUndo(); rows.splice(i + 1, 0, [r[0] + '2', r[1], r[2], r[3]]); markDirty(); draw(); drawList(); },
+          onDup: () => { pushUndo(); rows.splice(i + 1, 0, [r[0] + '2'].concat(r.slice(1))); markDirty(); draw(); drawList(); },
           onDel: () => { pushUndo(); rows.splice(i, 1); markDirty(); draw(); drawList(); },
         })));
         sum();
@@ -507,7 +521,7 @@
           pushUndo(); W.props[id] = d.props.map((p) => [p.name, p.icon, p.price, p.fame]); markDirty(); drawForm(); drawList();
         } }, 'この駅を元にもどす'),
         h('button.btn.btn--sm.btn--lav.btn--outline', { type: 'button', onclick: () => { ed.tab = 'map'; ed.tool = 'station'; ed.selSt = id; render(); } }, '地図で見る')));
-      form.appendChild(h('p.hint', '価格は「−」「＋」でも上げ下げできます。利回りは価格と名物度で自動に決まります（安いほど高く、名物ほど高い。10%以上は5%刻み）。'));
+      form.appendChild(h('p.hint', '価格は「−」「＋」でも上げ下げできます。利回りは空のままなら価格と名物度で自動に決まります（安いほど高く、名物ほど高い。10%以上は5%刻みで、1億円をこえる物件は20%まで）。数字を入れると、その物件だけ好きな利回りにできます。'));
     }
     drawList(); drawForm();
   }
@@ -530,7 +544,7 @@
       let items = [];
       allIds().forEach((id) => (W.props[id] || []).forEach((r) => { if (!term || String(r[0]).includes(term) || nameOf(id).includes(term)) items.push({ id, r }); }));
       const s = sort.value;
-      items.sort((a, b) => (s === 'priceAsc' ? a.r[2] - b.r[2] : s === 'station' ? nameOf(a.id).localeCompare(nameOf(b.id), 'ja') || a.r[2] - b.r[2] : s === 'rate' ? A.rateFor(b.r[2], b.r[3]) - A.rateFor(a.r[2], a.r[3]) : b.r[2] - a.r[2]));
+      items.sort((a, b) => (s === 'priceAsc' ? a.r[2] - b.r[2] : s === 'station' ? nameOf(a.id).localeCompare(nameOf(b.id), 'ja') || a.r[2] - b.r[2] : s === 'rate' ? A.rateOf(b.r) - A.rateOf(a.r) : b.r[2] - a.r[2]));
       count.textContent = items.length + '件' + (items.length > LIMIT ? '（はじめの' + LIMIT + '件を表示。さがすとしぼれます）' : '');
       table.innerHTML = '';
       table.appendChild(h('div.ed-phead', h('span', 'アイコン'), h('span', '名前'), h('span', '価格（万円）'), h('span', '名物度・利回り'), h('span', '駅')));

@@ -66,6 +66,11 @@ note('駅どうしの最小のきょり ' + minGap + 'マス（グリッド）')
 
 // 駅から出る道は4本まで、駅どうしが直接となりあわない
 A.STATIONS.forEach((s) => { const n = B.byId[s.id]; if (n.adj.length > 4) warn('道が5本以上ある駅: ' + s.name); n.adj.forEach((id) => { if (B.byId[id].type === 'station' && B.links.find((l) => (l.a === s.id && l.b === id) || (l.b === s.id && l.a === id)).pts.length < 3) warn(`駅どうしが直接となりあう: ${s.name}-${B.byId[id].station}`); }); });
+// 駅のまわり8マス（ななめもふくむ）に止まるマスを置かない（分かれ道・行き止まりのマスはしかたないので注意だけ）
+A.STATIONS.forEach((s) => B.nodes.forEach((n) => {
+  if (n.type === 'station' || Math.max(Math.abs(n.cx - s.cx), Math.abs(n.cy - s.cy)) > 1) return;
+  (n.adj.length === 2 ? warn : note)(`駅のすぐとなりに止まるマス: ${s.name} (${n.cx},${n.cy})`);
+}));
 
 // 3. 県内にあるか（島・橋・海路は除く）
 A.STATIONS.forEach((s) => {

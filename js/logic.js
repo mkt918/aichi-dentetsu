@@ -41,7 +41,7 @@
   }
   /** 金額の倍率。年が進むほど、また、みんなの資産がふえるほど大きくなる（青マスやボーナスが相場に合う） */
   function yf(s) {
-    const avg = s.players.reduce((a, p) => a + assetsRaw(s, p.id), 0) / Math.max(1, s.players.length);
+    const avg = s.players.reduce((a, p) => a + assets(s, p.id), 0) / Math.max(1, s.players.length);
     return 1 + 0.5 * (calendar(s).year - 1) + Math.max(0, avg) / 30000;
   }
   /** 季節で変わるマスの倍率。夏は青マス（もらえる）が多く、冬は赤マス（へる）が多い */
@@ -80,8 +80,7 @@
   /** 増資で値上がりした、いまの物件価格 */
   function propPrice(s, prop) { return Math.round(prop.price * (1 + 0.5 * ((s.levels && s.levels[prop.id]) || 0))); }
   const MAX_LEVEL = 3;
-  function assetsRaw(s, idx) { return s.players[idx].cash + ownedProps(s, idx).reduce((a, p) => a + propPrice(s, p), 0); }
-  function assets(s, idx) { return assetsRaw(s, idx); }
+  function assets(s, idx) { return s.players[idx].cash + ownedProps(s, idx).reduce((a, p) => a + propPrice(s, p), 0); }
   function ranking(s) {
     return s.players.map((p) => p.id).sort((a, b) => assets(s, b) - assets(s, a) || ownedProps(s, b).length - ownedProps(s, a).length || a - b);
   }
@@ -93,7 +92,7 @@
     if (o === undefined) return -1;
     return props.every((p) => s.owners[p.id] === o) ? o : -1;
   }
-  /** 物件の利回り（%）。駅の物件をぜんぶ同じ人が持つ（独占）と、その駅の物件の利回りは2倍になる */
+  /** 物件の利回り（%）。駅の物件をぜんぶ同じ人が持つ（独占）と、その駅の物件の利回りは2倍になる（20%をこえてもよい） */
   function propRate(s, prop) {
     const o = s.owners[prop.id];
     return o !== undefined && monopolyOwner(s, prop.station) === o ? prop.rate * 2 : prop.rate;
@@ -409,6 +408,7 @@
       const slow = s.turn.slow;
       if (slow) total = 1;
       await drv.emit({ t: 'roll', p: idx, dice, total, slow });
+      p.prev = null; // 番のはじめは、来た道へも戻れる（進みはじめたら、すぐ引き返すことはできない）
       let remaining = total;
       // サイコロの目で止まれる場所のうち、行きたい所をえらぶ（えらべない／1か所だけなら、そのまま進む）
       let forced = null, fi = 0;

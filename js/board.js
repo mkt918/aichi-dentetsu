@@ -95,7 +95,7 @@
     // どこにもつながっていないマスは外す
     const live = nodes.filter((n) => n.adj.length || n.type === 'station');
     nodes.forEach((n) => { if (!live.includes(n)) delete byId[n.id]; });
-    return { nodes: live, byId, edges: [], links, cells };
+    return { nodes: live, byId, links, cells };
   }
 
   const B = build();

@@ -9,7 +9,7 @@
   const ENV = (typeof process !== 'undefined' && process.env) || {};
   const EDIT_MAP_KEY = 'aichi-dentetsu-editing-map';
   function allMaps() {
-    const presets = (A.MAPPRESETS || [{ id: 'full', name: '愛知県', start: 'nagoya', cells: A.MAPDATA || [] }]).map((m) => Object.assign({ builtin: true }, m));
+    const presets = (A.MAPPRESETS || [{ id: 'full', name: '愛知県', start: 'nagoya', cells: [] }]).map((m) => Object.assign({ builtin: true }, m));
     const own = (A.OVERRIDES && A.OVERRIDES.maps) || {};
     const ok = (c) => Array.isArray(c) && c.length > 10 && c.every((r) => Array.isArray(r) && Number.isFinite(r[0]) && Number.isFinite(r[1]));
     return presets.concat(Object.keys(own).filter((id) => own[id] && ok(own[id].cells)).map((id) => ({ id, name: own[id].name || '自作マップ', desc: own[id].desc || 'エディターで作った盤面', start: own[id].start || 'nagoya', scale: +own[id].scale || 1, cells: own[id].cells, builtin: false })));
@@ -32,12 +32,14 @@
   const SCALE = 1.8 * MAP_SCALE;
   const proj = (lon, lat) => [(lon - 136.6) * 860 * SCALE, (35.45 - lat) * 1050 * SCALE];
 
-  // ---- 物件の利回り: 安い物件ほど高く(50%〜)、高い物件ほど低く(1〜3%)。名物度(隠しデータ)が高いほど高い ----
+  // ---- 物件の利回り: 安い物件ほど高く、高い物件ほど低い。名物度(隠しデータ)が高いほど上乗せする ----
+  // 有名なもの（名物度3）は高い物件でも 7〜15% ほど。1億円をこえる物件は 20% まで
+  const RATE_CAP_PRICE = 10000, RATE_CAP = 20;
   function rateFor(price, fame) {
-    const base = price <= 500 ? 70 : price <= 1000 ? 50 : price <= 2000 ? 30 : price <= 3000 ? 18 : price <= 5000 ? 10 : price <= 8000 ? 5 : price <= 15000 ? 3 : price <= 30000 ? 2 : 1;
-    const mul = fame >= 3 ? 1.3 : fame === 2 ? 1 : 0.8;
-    const r = Math.max(1, Math.round(base * mul));
-    return r >= 10 ? Math.max(10, Math.round(r / 5) * 5) : r; // 10%以上は5%刻み
+    const base = price <= 500 ? 50 : price <= 1000 ? 40 : price <= 2000 ? 25 : price <= 3000 ? 15 : price <= 5000 ? 10 : price <= 8000 ? 6 : price <= 10000 ? 5 : price <= 15000 ? 4 : price <= 30000 ? 3 : price <= 100000 ? 2 : 1;
+    const r = fame >= 3 ? base * 1.4 + 6 : fame === 2 ? base * 1.2 + 2 : base;
+    const out = r >= 10 ? Math.max(10, Math.round(r / 5) * 5) : Math.max(1, Math.round(r)); // 10%以上は5%刻み
+    return price > RATE_CAP_PRICE ? Math.min(RATE_CAP, out) : out;
   }
 
   // ---- 有名な場所・お店・工場ほど、物件の値段を高くする（元の値段 × 種類 × 名物度） ----
@@ -56,8 +58,8 @@
   // 地域: nagoya=名古屋 / owari=尾張 / chita=知多 / nishimikawa=西三河 / higashimikawa=東三河 / atsumi=渥美
   const REGION = { nagoya: '名古屋', owari: '尾張', chita: '知多', nishimikawa: '西三河', higashimikawa: '東三河', atsumi: '渥美' };
 
-  const OV = A.OVERRIDES || { pos: {}, edges: null, props: {} };
-  // 物件の一覧 [名前, アイコン, 価格, 名物度]。エディターの上書きがあればそれを使う。安い順に並べる
+  const OV = A.OVERRIDES || { props: {} };
+  // 物件の一覧 [名前, アイコン, 価格, 名物度, 利回り]。エディターの上書きがあればそれを使う（利回りは数字なら手で決めた値、なければ rateFor）。安い順に並べる
   // 元データの5つ目（home）は、その名所の本来の駅。本来の駅がこのマップに置かれていれば、そちらの物件にする（細かいマップ用）
   const moved = (it) => it[4] && PLACED.has(it[4]);
   const itemsOf = (r) => {
@@ -66,6 +68,7 @@
     const list = ov ? ov.map((it) => it.slice()) : own.map((it) => [it[0], it[1], finalPrice(it[0], it[1], it[2], it[3]), it[3]]);
     return list.map((it, i) => ({ it, i })).sort((a, b) => a.it[2] - b.it[2] || a.i - b.i).map((o) => o.it);
   };
+  const rateOf = (it) => (Number.isFinite(it[4]) && it[4] > 0 ? it[4] : rateFor(it[2], it[3])); // エディターで決めた利回り（%）があればそれ
   const STATIONS = A.RAW_STATIONS.map((r) => ({
     id: r.id, name: r.name, region: r.region, lv: r.lv || 1, lon: r.lon, lat: r.lat, desc: r.desc, tag: r.tag || r.desc,
     shop: !!r.shop,     // カード売り場がある
@@ -73,7 +76,7 @@
     card: !!r.card && !(OV.props && OV.props[r.id] && OV.props[r.id].length), // 物件のないカード駅（止まるとカードがもらえる）
     island: !!r.island, // 島の駅（海の上に置く）
     pin: !!r.pin,       // 位置を動かさない駅
-    props: itemsOf(r).map((it, i) => ({ id: r.id + '-' + i, station: r.id, name: it[0], icon: it[1], price: it[2], fame: it[3], rate: rateFor(it[2], it[3]) })),
+    props: itemsOf(r).map((it, i) => ({ id: r.id + '-' + i, station: r.id, name: it[0], icon: it[1], price: it[2], fame: it[3], rate: rateOf(it) })),
   }));
 
   // ---- 路線: 実際の鉄道の並び（間の駅はぬいてある）。同じ区間が複数の路線にあれば1本にまとめる ----
@@ -265,7 +268,6 @@
     // 道の種類は「線路」と「海路」の2つだけ（高速・国道・県道・橋も線路として引く）
     return order.map((e) => [e.a, e.b, Object.assign({}, e.opt, { kinds: e.opt.sea ? ['sea'] : ['rail'] })]);
   }
-  const EDGES = buildEdges(PLACED.size ? PLACED : new Set(STATIONS.filter((s) => s.lv <= 1).map((s) => s.id)), MAP.id);
 
   // ---- 地図は四角いグリッドで区切る。駅も道も、グリッドの1マスにぴったり入れる ----
   const GRID = 34;                         // 1マスの大きさ（画面の px）
@@ -338,5 +340,5 @@
   ];
   const BORDER_END = 30; // ここ（静岡県との境が海に出るところ）までが陸の県境
 
-  Object.assign(A, { K, proj, rateFor, finalPrice, ICON_MULT, REGION, STATIONS, LINES, ROADS, EDGES, buildEdges, allMaps, MAP_INFO: { id: MAP.id, name: MAP.name, start: MAP.start, builtin: MAP.builtin, scale: MAP_SCALE }, CURRENT_MAP: MAP, EDIT_MAP_KEY, GRID, SQUARE_SCALE, STATION_SCALE, SQUARE_MIX, CARDS, HAND_LIMIT, EVENTS, CHARS, OUTLINE_LONLAT, BORDER_END });
+  Object.assign(A, { K, proj, rateFor, rateOf, finalPrice, REGION, STATIONS, buildEdges, allMaps, MAP_INFO: { id: MAP.id, name: MAP.name, start: MAP.start, builtin: MAP.builtin, scale: MAP_SCALE }, CURRENT_MAP: MAP, EDIT_MAP_KEY, GRID, SQUARE_SCALE, STATION_SCALE, SQUARE_MIX, CARDS, HAND_LIMIT, EVENTS, CHARS, OUTLINE_LONLAT, BORDER_END });
 })(typeof globalThis !== 'undefined' ? globalThis : this);
