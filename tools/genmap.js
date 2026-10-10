@@ -41,7 +41,10 @@ const K = (x, y) => x + ',' + y;
 // SPEC='{"nagoya":2,"owari":1}' のように、地域ごとに「どの細かさ（lv）の駅まで入れるか」をわたすと、その地域だけの盤面を作る。
 // わたさなければ県全体（細かさ1の駅だけ）。スタートの駅（START）は必ず入れる。縮尺は MAP_SCALE（data.js が読む）
 const SPEC = process.env.SPEC ? JSON.parse(process.env.SPEC) : null;
-const S = A.STATIONS.filter((s) => (SPEC ? SPEC[s.region] || 0 : 1) >= s.lv || s.id === process.env.START);
+// BBOX='[経度0,緯度0,経度1,緯度1]' をわたすと、その範囲の駅だけにする（名古屋の町なかのマップ）
+const BBOX = process.env.BBOX ? JSON.parse(process.env.BBOX) : null;
+const inBox = (s) => !BBOX || (s.lon >= BBOX[0] && s.lat >= BBOX[1] && s.lon <= BBOX[2] && s.lat <= BBOX[3]);
+const S = A.STATIONS.filter((s) => ((SPEC ? SPEC[s.region] || 0 : 1) >= s.lv && inBox(s)) || s.id === process.env.START);
 const SID = new Set(S.map((s) => s.id));
 const EDGES = A.buildEdges(SID, process.env.GEN_MAP); // GEN_MAP はマップのID（そのマップだけの道を足す）。 路線の途中の駅がこの盤面になければ、とばして前後をつなぐ
 const cell = {};

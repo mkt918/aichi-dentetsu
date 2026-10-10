@@ -10,6 +10,7 @@ const PRESETS = [
   { id: 'full', name: '愛知県', desc: '県の形も駅の位置も、実際の地図と同じ。名古屋の町なかは駅が少なめで、奥三河は遠い。', start: 'nagoya' },
   // 地域をしぼった細かいマップ。spec: 地域ごとに入れる駅の細かさ（lv）。scale: 県全体のマップの何倍の大きさで描くか
   { id: 'nagoya', name: '名古屋市', desc: '名古屋市だけを大きく。大須・覚王山・鶴舞・栄生など、町なかの駅がぐっと増える。', start: 'nagoya', spec: { nagoya: 2 }, scale: 2.6, tries: 40, turns: 14 },
+  { id: 'nagoyacenter', name: '名古屋の町なか', desc: '名古屋駅・栄・金山のまわりを大きく。伏見・丸の内・市役所・新栄町・本山など、地下鉄の駅をこまかくめぐる。', start: 'nagoya', spec: { nagoya: 3 }, bbox: [136.85, 35.11, 136.98, 35.21], scale: 5, tries: 40, turns: 14 },
   { id: 'owari', name: '尾張', desc: '尾張の町を細かく。名古屋は大きな駅だけ。七宝焼の甚目寺、航空ミュージアムの豊山など。', start: 'nagoya', spec: { nagoya: 1, owari: 2 }, scale: 1.5, tries: 40, turns: 14 },
   { id: 'chita', name: '知多半島', desc: '知多半島と島を細かく。亀崎・新舞子・小鈴谷・豊浜など、海ぞいの町をめぐる。', start: 'handa', spec: { chita: 2 }, scale: 2.0, tries: 40, turns: 14 },
   { id: 'nishimikawa', name: '西三河', desc: '岡崎・豊田・安城・西尾を細かく。トヨタの本社や鞍ヶ池、佐久島も。', start: 'okazaki', spec: { nishimikawa: 2 }, scale: 1.4, tries: 40, turns: 14 },
@@ -47,6 +48,7 @@ const maps = PRESETS.map((p) => {
   if (ONLY && !ONLY.has(p.id) && old[p.id]) return Object.assign({}, p, { cells: old[p.id].cells });
   const env = Object.assign({}, process.env, { OUT: 'json', START: p.start });
   if (p.spec) env.SPEC = JSON.stringify(p.spec); else delete env.SPEC;
+  if (p.bbox) env.BBOX = JSON.stringify(p.bbox); else delete env.BBOX;
   env.MAP_SCALE = String(p.scale || 1);
   env.GEN_MAP = p.id;
   if (p.turns) env.PRIO_TURNS = String(p.turns); else delete env.PRIO_TURNS;

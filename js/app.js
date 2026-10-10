@@ -456,7 +456,7 @@
         <h3>貧乏神</h3>
         <p>目的地に誰かが着くと、目的地から<b>いちばん遠い人</b>に貧乏神がとりつきます。とりつかれると、番の終わりにお金やカード、ときには物件をうしないます。<b>貧乏神がついた人が、ほかの人と同じマスに止まる</b>と、その人になすりつけられます。</p>
         <h3>物件と決算</h3>
-        <p>駅の物件は、買った人のものになります。<b>3月の終わりの決算</b>で、物件の価格 × 利回りのお金が毎年入ります。<b>1つの駅の物件をぜんぶ買う</b>（独占）と、その駅の収入は<b>2倍</b>になります。</p>
+        <p>駅の物件は、買った人のものになります。<b>3月の終わりの決算</b>で、物件の価格 × 利回りのお金が毎年入ります。<b>1つの駅の物件をぜんぶ買う</b>（独占）と、その駅の物件の<b>利回りが2倍</b>になり、収入も2倍になります。</p>
         <h3>増資</h3>
         <p>自分の物件がある駅に止まると、<b>増資</b>ができます。物件の価格が元の半分ずつ上がり（最大3回）、収入も増えます。安い物件ほど利回りが高いので、増資のもとが取りやすいです。</p>
         <h3>カードとカード駅</h3>
@@ -472,7 +472,7 @@
   function propRow(s, prop, opts) {
     const o = s.owners[prop.id], own = o !== undefined ? s.players[o] : null;
     const lv = (s.levels && s.levels[prop.id]) || 0, price = L.propPrice(s, prop);
-    const inc = Math.round(price * prop.rate / 100);
+    const rate = L.propRate(s, prop), inc = L.propIncome(s, prop); // 独占していれば利回り2倍
     const act = h('span.prop-act');
     if (own) act.appendChild(h('span.prop-owner', { html: Art.character(own.char, 22) + '<b>' + esc(own.name) + '</b>' }));
     if (opts && opts.extra) act.appendChild(opts.extra);
@@ -480,7 +480,7 @@
       h('span.prop-ico', { html: Art.icon(prop.icon, 26) }),
       h('span.prop-main',
         h('strong.prop-name', prop.name, lv ? h('em.tag', '増資 Lv.' + lv) : null),
-        h('span.prop-stats', h('span.stat', '価格 ' + fmt(price)), h('span.stat', '利回り ' + prop.rate + '%'), h('span.stat', '年収 ' + fmt(inc)))),
+        h('span.prop-stats', h('span.stat', '価格 ' + fmt(price)), h('span.stat' + (rate !== prop.rate ? '.stat--mono' : ''), '利回り ' + rate + '%' + (rate !== prop.rate ? '（独占で2倍）' : '')), h('span.stat', '年収 ' + fmt(inc)))),
       act.children.length ? act : null);
   }
 
@@ -492,7 +492,7 @@
       h('p.station-desc', st.desc),
       h('p.station-meta', h('span.chip', REGION[st.region]), s.dest === id ? h('span.chip.chip--dest', { html: Art.flag(14) + '目的地' }) : null,
         st.card ? h('span.chip.chip--card', 'カード駅') : null, st.shop ? h('span.chip.chip--card', 'カード売り場') : null,
-        mono >= 0 ? h('span.chip.chip--mono', '独占中（収入2倍）') : null),
+        mono >= 0 ? h('span.chip.chip--mono', '独占中（利回り2倍）') : null),
       st.plain ? h('p.hint', '通過駅です。物件はありません。止まると、少しおこづかいがもらえます。') : st.card ? h('p.hint', '物件はありません。止まると、カードが1枚もらえます。') : h('div.props', st.props.map((p) => propRow(s, p))));
     return modal({ title: esc(st.name) + '駅', body, actions: [{ label: 'とじる', value: true }] }).promise;
   }
@@ -758,7 +758,7 @@
         sale ? h('span.chip.chip--sale', '半額セール中!') : null));
       body.appendChild(h('div.shop-about', h('span.chip', REGION[st.region]), h('p.station-desc', st.desc)));
       const mono = L.monopolyOwner(s, st.id);
-      body.appendChild(h('p.hint', mono === idx ? 'この駅を独占しています（収入2倍）!' : 'この駅の物件を全部買うと収入が2倍に。自分の物件は「増資」で価格と収入を増やせます（最大3回）。'));
+      body.appendChild(h('p.hint', mono === idx ? 'この駅を独占しています（利回り2倍）!' : 'この駅の物件を全部買うと利回りが2倍に。自分の物件は「増資」で価格と収入を増やせます（最大3回）。'));
       const list = h('div.props');
       st.props.forEach((pr) => {
         const owner = s.owners[pr.id], lv = s.levels[pr.id] || 0;

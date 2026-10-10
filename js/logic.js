@@ -93,10 +93,13 @@
     if (o === undefined) return -1;
     return props.every((p) => s.owners[p.id] === o) ? o : -1;
   }
-  function propIncome(s, prop) {
-    const base = Math.round((propPrice(s, prop) * prop.rate) / 100);
+  /** 物件の利回り（%）。駅の物件をぜんぶ同じ人が持つ（独占）と、その駅の物件の利回りは2倍になる */
+  function propRate(s, prop) {
     const o = s.owners[prop.id];
-    return monopolyOwner(s, prop.station) === o && o !== undefined ? base * 2 : base;
+    return o !== undefined && monopolyOwner(s, prop.station) === o ? prop.rate * 2 : prop.rate;
+  }
+  function propIncome(s, prop) {
+    return Math.round((propPrice(s, prop) * propRate(s, prop)) / 100);
   }
   const saleOf = (s, v) => (s.turn && s.turn.sale ? Math.round(v / 2) : v);
   function priceFor(s, prop) { return saleOf(s, prop.price); }
@@ -473,7 +476,7 @@
     Logic: {
       STATION, PROP, START_CASH, START_STATION,
       rnd, rint, round10, fmt, calendar, yf, seasonOf, current, newGame, freshTurn,
-      ownedProps, assets, ranking, monopolyOwner, propIncome, propPrice, priceFor, investCost, MAX_LEVEL, buy, invest, cardPrice, cardStock, buyCard, foodAwards,
+      ownedProps, assets, ranking, monopolyOwner, propRate, propIncome, propPrice, priceFor, investCost, MAX_LEVEL, buy, invest, cardPrice, cardStock, buyCard, foodAwards,
       drawCard, gainCard, canUseCard, applyCard, buyoutTargets,
       pickDest, destBonus, arrive, godTransfer, godEffect, squareEffect, applyEvent,
       settle, advance, awards, runTurn, gainCardWithDiscard,

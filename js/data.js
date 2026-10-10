@@ -78,12 +78,12 @@
 
   // ---- 路線: 実際の鉄道の並び（間の駅はぬいてある）。同じ区間が複数の路線にあれば1本にまとめる ----
   const LINES = [
-    ['東山線', ['nakamura', 'nagoya', 'sakae', 'imaike', 'kakuozan', 'higashiyama', 'fujigaoka']],
-    ['名城線', ['sakae', 'nagoyajo', 'ozone']],
-    ['名城線(東)', ['higashiyama', 'yagoto', 'mizuho', 'kanayama']],
+    ['東山線', ['nakamura', 'kamejima', 'nagoya', 'fushimi', 'sakae', 'shinsakae', 'imaike', 'kakuozan', 'motoyama', 'higashiyama', 'fujigaoka']],
+    ['名城線', ['sakae', 'shiyakusho', 'nagoyajo', 'kurokawa', 'ozone']],
+    ['名城線(東)', ['higashiyama', 'yagoto', 'mizuho', 'jinguunishi', 'kanayama']],
     ['名港線', ['kanayama', 'nagoyakou']],
     ['桜通線', ['yagoto', 'tokushige']],
-    ['あおなみ線', ['nagoya', 'arako', 'kinjo']],
+    ['あおなみ線', ['nagoya', 'sasashima', 'arako', 'kinjo']],
     ['JR東海道線', ['kisogawa', 'ichinomiya', 'inazawa', 'kiyosu', 'nagoya', 'kanayama', 'atsuta', 'kasadera', 'odaka', 'arimatsu', 'obu', 'kariya', 'anjo', 'okazaki', 'kota', 'gamagori', 'mitani', 'kozakai', 'toyohashi', 'futagawa']],
     ['名鉄名古屋本線', ['atsuta', 'kasadera', 'narumi', 'arimatsu', 'toyoake', 'chiryu', 'anjo', 'okazaki', 'fujikawa', 'akasaka', 'goyu', 'kozakai']],
     ['JR中央線', ['kanayama', 'tsurumai', 'imaike', 'ozone', 'kachigawa', 'kozoji']],
@@ -107,8 +107,25 @@
     ['JR飯田線', ['toyohashi', 'toyokawa', 'mikawaichinomiya', 'shinshiro', 'nagashino', 'horaiji', 'toei']],
     ['豊鉄渥美線', ['toyohashi', 'oitsu', 'tahara']]
     // ここから下は、細かいマップだけの駅をふくむ路線（県全体のマップでは、もとからある区間しか残らない）
-    , ['鶴舞線', ['shonai', 'osu', 'tsurumai', 'yagoto', 'hirabari', 'nisshin']],
-    ['桜通線(西)', ['imaike', 'mizuho', 'narumi']],
+    , ['鶴舞線', ['shonai', 'marunouchi', 'fushimi', 'osu', 'tsurumai', 'yagoto', 'hirabari', 'nisshin']],
+    ['桜通線(西)', ['imaike', 'sakurayama', 'mizuho', 'narumi']],
+    // 名古屋の町なかのマップだけの区間（地下鉄の駅のつながり）
+    ['地下鉄', ['nagoya', 'marunouchi']],
+    ['地下鉄', ['marunouchi', 'takaoka']],
+    ['地下鉄', ['takaoka', 'imaike']],
+    ['地下鉄', ['ozone', 'yada']],
+    ['地下鉄', ['yada', 'motoyama']],
+    ['地下鉄', ['motoyama', 'yagoto']],
+    ['地下鉄', ['kanayama', 'higashibetsuin']],
+    ['地下鉄', ['higashibetsuin', 'osu']],
+    ['地下鉄', ['jinguunishi', 'atsuta']],
+    ['地下鉄', ['sasashima', 'fushimi']],
+    ['地下鉄', ['shiyakusho', 'tokugawaen']],
+    ['地下鉄', ['takaoka', 'shinsakae']],
+    ['地下鉄', ['kurokawa', 'shonai']],
+    ['地下鉄', ['yada', 'tokugawaen']],
+    ['地下鉄', ['higashibetsuin', 'tsurumai']],
+    ['地下鉄', ['sakurayama', 'tsurumai']],
   ];
   // 線路の並びでは結べないもの（橋・海路）。opt: bridge=橋 / sea=フェリー / prio=盤面を作るとき先に引く
   const SPECIAL = [
