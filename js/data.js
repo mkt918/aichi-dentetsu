@@ -35,10 +35,14 @@
   // ---- 物件の利回り: 安い物件ほど高く、高い物件ほど低い。名物度(隠しデータ)が高いほど上乗せする ----
   // 有名なもの（名物度3）は高い物件でも 7〜15% ほど。1億円をこえる物件は 20% まで
   const RATE_CAP_PRICE = 10000, RATE_CAP = 20;
+  // [この価格(万円)まで, ふつう, 名物, 超名物]
+  const RATE_TABLE = [
+    [500, 70, 100, 150], [1000, 50, 70, 100], [2000, 35, 50, 80], [3000, 25, 40, 60], [5000, 20, 30, 50],
+    [8000, 15, 20, 30], [10000, 10, 15, 25], [15000, 6, 10, 20], [30000, 4, 8, 15], [100000, 3, 6, 10], [Infinity, 2, 4, 8],
+  ];
   function rateFor(price, fame) {
-    const base = price <= 500 ? 50 : price <= 1000 ? 40 : price <= 2000 ? 25 : price <= 3000 ? 15 : price <= 5000 ? 10 : price <= 8000 ? 6 : price <= 10000 ? 5 : price <= 15000 ? 4 : price <= 30000 ? 3 : price <= 100000 ? 2 : 1;
-    const r = fame >= 3 ? base * 1.4 + 6 : fame === 2 ? base * 1.2 + 2 : base;
-    const out = r >= 10 ? Math.max(10, Math.round(r / 5) * 5) : Math.max(1, Math.round(r)); // 10%以上は5%刻み
+    const row = RATE_TABLE.find((r) => price <= r[0]);
+    const out = row[fame >= 3 ? 3 : fame === 2 ? 2 : 1];
     return price > RATE_CAP_PRICE ? Math.min(RATE_CAP, out) : out;
   }
 

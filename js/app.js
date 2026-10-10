@@ -5,7 +5,7 @@
   const L = A.Logic, B = A.Board, UI = A.UI, Art = A.Art, AI = A.AI, Au = A.Audio;
   const { h, $, $$, esc, sleep, modal } = UI;
   const fmt = L.fmt;
-  const SAVE_KEY = 'aichi-dentetsu-save-v7', PREF_KEY = 'aichi-dentetsu-pref-v1';
+  const SAVE_KEY = 'aichi-dentetsu-save-v8', PREF_KEY = 'aichi-dentetsu-pref-v1';
   const LEVELS = { 1: 'よわい', 2: 'ふつう', 3: 'つよい' };
   const SPEEDS = [{ v: 1, name: 'ふつう' }, { v: 0.5, name: 'はやい' }, { v: 0.2, name: 'とてもはやい' }, { v: 0, name: 'さいそく' }];
 

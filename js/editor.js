@@ -83,8 +83,9 @@
       around(c[0], c[1]).forEach((o) => { if (o[2] === 'S' && o[3] > c[3]) out.touch.push([c[3], o[3]]); });
     });
     placed.forEach((i) => { if (!W.props[i] || !W.props[i].length) out.noProp.push(i); });
+    // 同じ駅の中なら同じ名前の物件をいくつ並べてもよい（みかん畑を3つ、など）。ほかの駅と同じ名前はだめ
     const names = {};
-    placed.forEach((i) => (W.props[i] || []).forEach((r) => { (names[r[0]] = names[r[0]] || []).push(i); }));
+    placed.forEach((i) => new Set((W.props[i] || []).map((r) => r[0])).forEach((n) => { (names[n] = names[n] || []).push(i); }));
     Object.keys(names).forEach((n) => { if (names[n].length > 1) out.dupName.push([n, names[n]]); });
     return out;
   }
@@ -412,7 +413,7 @@
     const W = ed.W;
     ed.pmode = ed.pmode || 'station';
     if (!ed.cur || !allIds().includes(ed.cur)) ed.cur = allIds()[0];
-    const dupes = () => { const all = {}; allIds().forEach((i) => (W.props[i] || []).forEach((r) => { all[r[0]] = (all[r[0]] || 0) + 1; })); return all; };
+    const dupes = () => { const all = {}; allIds().forEach((i) => new Set((W.props[i] || []).map((r) => r[0])).forEach((n) => { all[n] = (all[n] || 0) + 1; })); return all; }; // 名前ごとの駅の数
 
     /** 物件1行（名前・アイコン・価格・名物度・利回りと年収）。onDel があれば「消す」、onDup があれば「複製」 */
     function propRow(r, opts) {
@@ -424,7 +425,7 @@
       ico.addEventListener('click', () => sel.focus());
       const nm = h('input.ed-in-name', { type: 'text', value: r[0], maxlength: 20, 'aria-label': '物件の名前' });
       const warn = h('small.ed-warn');
-      const chkName = () => { warn.textContent = dupes()[nm.value] > 1 ? '同じ名前がほかにもあります' : ''; };
+      const chkName = () => { warn.textContent = dupes()[nm.value] > 1 ? 'ほかの駅に同じ名前があります' : ''; };
       nm.addEventListener('input', () => { r[0] = nm.value; markDirty(); chkName(); });
       chkName();
       const pr = h('input.ed-in-price', { type: 'number', min: 100, step: 100, value: r[2], 'aria-label': '価格（万円）' });

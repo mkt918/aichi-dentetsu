@@ -31,10 +31,10 @@ A.STATIONS.forEach((s) => {
   s.props.forEach((p, i) => { if (i && p.price < s.props[i - 1].price) warn(s.name + ': 物件が安い順になっていない'); });
 });
 note('5件未満の物件駅: ' + (A.STATIONS.filter((s) => !s.card && !s.plain && s.props.length < 5).map((s) => s.name + s.props.length).join(' ') || 'なし'));
-const names = new Set();
+const names = {}; // 同じ駅の中の同じ名前はよい（みかん畑を3つ、など）。ほかの駅と同じ名前はだめ
 all.forEach((p) => {
-  if (names.has(p.name)) warn('物件名が重複: ' + p.name);
-  names.add(p.name);
+  if (names[p.name] && names[p.name] !== p.station) warn('物件名がほかの駅と重複: ' + p.name);
+  names[p.name] = p.station;
   if (!(p.price > 0 && p.rate >= 1)) warn('物件の価格/利回りが不正: ' + p.name);
   if (p.rate >= 10 && p.rate % 5) warn('利回りが5%刻みでない: ' + p.name + ' ' + p.rate);
 });
