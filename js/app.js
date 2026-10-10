@@ -42,6 +42,11 @@
     versus: { title: 'みんなで対戦', sub: '同じパソコンで2〜4人', lead: '1台のパソコンを交代で使って遊びます。自分の番になったら「サイコロをふる」を押します。CPUを混ぜることもできます。', char: 2, players: [['human', 2], ['human', 2]] },
     watch: { title: 'CPU観戦', sub: 'CPUだけで勝負させて見る', lead: 'CPU同士の対戦をながめるモードです。「はやさ」を上げると、あっという間に結果までいきます。', char: 3, players: [['cpu', 3], ['cpu', 2], ['cpu', 1]] },
   };
+  const TIMES = [
+    { t: 0, label: 'なし', note: 'ゆっくり考える' },
+    { t: 20, label: '20秒', note: 'テンポよく' },
+    { t: 40, label: '40秒', note: 'ほどほど' },
+  ];
   const YEARS = [
     { y: 1, label: '1年', note: 'おためし（5〜10分）' },
     { y: 3, label: '3年', note: 'ふつう（20〜30分）' },
@@ -98,7 +103,7 @@
     const m = MODES[mode];
     const slots = m.players.map(([type, level], i) => ({ type, level, name: A.CHARS[i].name }));
     while (slots.length < 4) slots.push({ type: 'none', level: 2, name: A.CHARS[slots.length].name });
-    app.setup = { mode, years: mode === 'solo' ? 1 : 3, slots };
+    app.setup = { mode, years: mode === 'solo' ? 1 : 3, slots, timeLimit: 0 };
     if (mode === 'watch') app.setup.years = 1;
     renderSetup();
     showScreen('screen-setup');
@@ -116,6 +121,13 @@
       yp.appendChild(b);
     });
     $('#years-note').textContent = '1年 = 12か月。3月の終わりに「決算」があり、持っている物件の収入が入ります。';
+    const tp = $('#time-pick');
+    tp.innerHTML = '';
+    TIMES.forEach((o) => {
+      const b = h('button.seg-btn', { type: 'button', role: 'radio', 'aria-checked': st.timeLimit === o.t ? 'true' : 'false' }, h('strong', o.label), h('small', o.note));
+      b.addEventListener('click', () => { Au.play('click'); st.timeLimit = o.t; renderSetup(); });
+      tp.appendChild(b);
+    });
 
     const box = $('#slots');
     box.innerHTML = '';
@@ -141,6 +153,7 @@
     });
     const active = st.slots.filter((s) => s.type !== 'none').length;
     const humans = st.slots.filter((s) => s.type === 'human').length;
+    $('#time-block').hidden = humans < 2; // 持ち時間は、人が2人以上のときだけ
     let note = '';
     if (m.fixed) note = 'ひとりで遊びます。';
     else if (active < 2) note = '2人以上にしてください。';
@@ -156,7 +169,8 @@
       if (sl.type === 'none') return;
       players.push({ name: (sl.name || A.CHARS[i].name).trim() || A.CHARS[i].name, type: sl.type, level: sl.level, char: i });
     });
-    return { years: st.years, mode: st.mode, debug: st.mode === 'solo', players, fixed: m.fixed };
+    const humans = players.filter((p) => p.type === 'human').length;
+    return { years: st.years, mode: st.mode, debug: st.mode === 'solo', players, fixed: m.fixed, timeLimit: humans >= 2 ? st.timeLimit : 0 };
   }
 
   // ======================================================================
@@ -184,8 +198,7 @@
     app.view.init(state);
     renderHud(true);
     app.view.fit(0); // HUD が出そろって地図の高さが決まってから、全体表示に合わせ直す
-    const hasCpu = state.players.some((p) => p.type === 'cpu');
-    $('#speed-box').hidden = !hasCpu;
+    $('#speed-box').hidden = false; // 人だけの対戦でも、演出のはやさを変えられる
     renderSpeedBox();
     saveGame();
     UI.log('ゲームスタート! 目的地は<b>' + L.STATION[state.dest].name + '</b>です。', 'sys');
@@ -238,6 +251,7 @@
 
   function quitToTitle() {
     // 保存は各ターンの区切りで済んでいる。途中の番の状態は保存しない（再開時は番のはじめから）
+    stopTimer();
     UI.rt.runId++;
     UI.setPaused(false);
     UI.closeAllModals();
@@ -406,7 +420,7 @@
         const items = [
           ['resume', '続ける', 'push'], ['props', '物件ぜんぶを見る', 'soft'], ['log', 'できごとログ', 'soft'], ['rules', 'あそびかた', 'soft'],
           ['route', 'ルート表示: ' + (app.prefs.route ? 'ON' : 'OFF'), 'soft'], ['sound', '効果音: ' + (app.prefs.sound ? 'ON' : 'OFF'), 'soft'],
-          ['speed', 'CPUのはやさ: ' + (SPEEDS.find((x) => x.v === UI.rt.speed) || SPEEDS[0]).name, 'soft'],
+          ['speed', 'はやさ: ' + (SPEEDS.find((x) => x.v === UI.rt.speed) || SPEEDS[0]).name, 'soft'],
           ['title', '保存してタイトルへ', 'outline'],
         ];
         const m = modal({ title: 'メニュー', body, actions: [] , cls: 'modal--menu'});
@@ -547,6 +561,27 @@
     cardShop: guarded((s, idx, st) => (isHuman(idx) ? humanCardShop(s, idx, st) : cpuCardShop(s, idx, st))),
   };
 
+  // ---------- 持ち時間（人が1つのことを決めるまで。時間がきたら onExpire でCPUが代わりに決める） ----------
+  let timerStop = null;
+  function stopTimer() { if (timerStop) timerStop(); }
+  function startTimer(onExpire) {
+    stopTimer();
+    const sec = app.state && app.state.config.timeLimit;
+    if (!sec) return () => {};
+    const el = $('#turn-timer');
+    let left = sec;
+    const show = () => { el.hidden = false; el.textContent = '持ち時間 のこり' + left + '秒'; el.classList.toggle('is-low', left <= 5); };
+    const id = setInterval(() => {
+      if (UI.rt.paused) return; // メニューを開いているあいだは止める
+      left--; show();
+      if (left <= 0) { stop(); onExpire(); }
+    }, 1000);
+    function stop() { clearInterval(id); el.hidden = true; if (timerStop === stop) timerStop = null; }
+    show();
+    timerStop = stop;
+    return stop;
+  }
+
   // ---------- 行動の選択 ----------
   async function cpuMenu(s, idx) {
     const p = s.players[idx];
@@ -560,13 +595,15 @@
     return new Promise((resolve) => {
       const p = s.players[idx];
       const cardsLeft = ctx.canCard;
-      const done = (v) => { setActions([]); resolve(v); };
+      let fin = false;
+      const done = (v) => { if (fin) return; fin = true; stop(); setActions([]); resolve(v); };
+      const stop = startTimer(() => { UI.closeAllModals(); done({ action: 'roll' }); }); // 時間ぎれはサイコロをふる
       setMsg('<b>' + esc(p.name) + '</b>の番です。' + (s.turn.cardUsed ? 'カードは使用ずみ。' : cardsLeft ? 'カードを使うか、サイコロをふろう!' : 'サイコロをふろう!'));
       const roll = actBtn({ label: 'サイコロをふる', icon: ICO.dice, big: true, onClick: () => done({ action: 'roll' }) });
       const btns = [roll];
       btns.push(actBtn({
         label: 'カード', sub: p.cards.length + '枚', kind: 'soft', color: 'cyan', icon: Art.cardMini(22), disabled: !cardsLeft,
-        onClick: async () => { const r = await chooseCardFlow(s, idx); if (r) done(r); },
+        onClick: async () => { const r = await chooseCardFlow(s, idx, () => !fin); if (r) done(r); },
       }));
       btns.push(actBtn({ label: '物件', kind: 'soft', color: 'mint', icon: ICO.home, onClick: () => showPlayerInfo(idx) }));
       btns.push(actBtn({ label: 'ルート', kind: 'soft', color: 'lav', icon: ICO.route, pressed: !!app.prefs.route, onClick: (b) => {
@@ -578,9 +615,10 @@
     });
   }
 
-  async function chooseCardFlow(s, idx) {
+  async function chooseCardFlow(s, idx, alive) {
     const p = s.players[idx];
     for (;;) {
+      if (alive && !alive()) return null; // 持ち時間がきれた
       const body = h('div.cards-grid');
       const m = modal({ title: 'カードをえらぶ', body, actions: [{ label: 'もどる', value: null, kind: 'outline', color: 'ink' }] });
       const counts = {};
@@ -606,6 +644,7 @@
       else if (c.kind === 'buyout') { arg = await pickBuyout(s, idx); if (!arg) continue; }
       else if (c.kind === 'dice' || c.kind === 'sale' || c.kind === 'money' || c.kind === 'self' || c.kind === 'stay') {
         const ok = await UI.confirm(c.name, esc(c.desc) + '<br>使いますか?', '使う', 'やめる');
+        if (alive && !alive()) return null;
         if (!ok) continue;
       }
       return { action: 'card', cardId: cid, arg };
@@ -671,8 +710,10 @@
       kind: 'soft', color: dd[o.id] === best ? 'pear' : 'cyan', icon: many ? '' : ICO.route, onClick: () => app.view.resolvePick(o.id),
     })));
     if (many) $('#action-buttons').classList.add('is-compact');
-    const id = await app.view.pickNode(ctx.options);
-    setActions([]);
+    const pick = app.view.pickNode(ctx.options);
+    const stop = startTimer(() => app.view.resolvePick(AI.chooseBranch(s, idx, ctx)));
+    const id = await pick;
+    stop(); setActions([]);
     return id;
   }
 
@@ -685,8 +726,13 @@
     const xs = ctx.endpoints.map((id) => B.byId[id].x).concat([B.byId[p.pos].x]), ys = ctx.endpoints.map((id) => B.byId[id].y).concat([B.byId[p.pos].y]);
     const w = Math.max(v.comfyWidth(), (Math.max.apply(null, xs) - Math.min.apply(null, xs)) * 1.3, (Math.max.apply(null, ys) - Math.min.apply(null, ys)) * 1.3 / Math.max(0.3, v.aspect()));
     v.setCam({ cx: (Math.max.apply(null, xs) + Math.min.apply(null, xs)) / 2, cy: (Math.max.apply(null, ys) + Math.min.apply(null, ys)) / 2, w }, 350);
-    const id = await v.pickNode(ctx.endpoints);
-    setActions([]);
+    const pick = v.pickNode(ctx.endpoints);
+    const stop = startTimer(() => { // 時間ぎれは、CPUがいちばんよいと思う場所へ
+      const best = ctx.endpoints.map((id) => ({ id, sc: AI.endpointScore(s, idx, id) })).sort((a, b) => b.sc - a.sc)[0];
+      v.resolvePick(best.id);
+    });
+    const id = await pick;
+    stop(); setActions([]);
     return id;
   }
 
@@ -695,6 +741,8 @@
     const p = s.players[idx];
     const body = h('div.cards-grid');
     const m = modal({ title: '手札がいっぱい!', body, dismiss: false, actions: [] });
+    const stop = startTimer(() => m.close(AI.chooseDiscard(s, idx, newCard)));
+    m.promise.then(stop);
     body.appendChild(h('p.hint.span-all', '新しい「' + A.CARDS[newCard].name + '」を持つには、1枚すてる必要があります。すてるカードをえらんでください。'));
     const pool = p.cards.concat([newCard]);
     const seen = {};
@@ -744,18 +792,42 @@
   async function humanShop(s, idx, st) {
     const p = s.players[idx];
     const canAny = () => st.props.some((pr) => s.owners[pr.id] === undefined || (s.owners[pr.id] === idx && (s.levels[pr.id] || 0) < L.MAX_LEVEL));
+    // いまのお金で買える・増資できるものがあるか
+    const canAfford = () => st.props.some((pr) => (s.owners[pr.id] === undefined && p.cash >= L.priceFor(s, pr)) || (s.owners[pr.id] === idx && (s.levels[pr.id] || 0) < L.MAX_LEVEL && p.cash >= L.investCost(s, pr)));
     if (!canAny()) {
       UI.log(esc(st.name) + 'の物件はすべて売れています。');
       await UI.banner({ title: '物件はすべて売れています', sub: esc(st.name) + '駅', kind: 'info' }, 900);
       return;
     }
+    if (!canAfford()) { // 買えるものがないときは、買い物の画面を出さずに先へ進む
+      UI.log(esc(p.name) + 'はお金が足りず、' + esc(st.name) + 'の物件を買えなかった。');
+      await UI.banner({ title: 'お金が足りません', sub: esc(st.name) + '駅の物件は、いまは買えません', kind: 'info' }, 900);
+      return;
+    }
+    // まとめて買う: まだだれのものでもない物件を、安い順にお金が足りるだけ
+    const bulkList = () => { let cash = p.cash; const out = []; st.props.forEach((pr) => { const pc = L.priceFor(s, pr); if (s.owners[pr.id] === undefined && cash >= pc) { out.push(pr); cash -= pc; } }); return out; };
     const body = h('div.shop');
     const m = modal({ title: esc(st.name) + '駅の物件', body, dismiss: false, cls: 'modal--wide', actions: [{ label: '買い物をおわる', value: true, color: 'pear' }] });
+    const stop = startTimer(() => m.close(true));
     const render = () => {
       body.innerHTML = '';
       const sale = s.turn.sale;
+      const bulk = bulkList();
+      let bulkBtn = null;
+      if (bulk.length >= 2) {
+        bulkBtn = h('button.btn.btn--pear.btn--sm.shop-bulk', { type: 'button', html: 'まとめて買う<small>' + bulk.length + '件 ' + fmt(bulk.reduce((a, pr) => a + L.priceFor(s, pr), 0)) + '</small>' });
+        bulkBtn.addEventListener('click', () => {
+          bulkList().forEach((pr) => {
+            const r = L.buy(s, idx, pr.id);
+            if (r.ok) UI.log('<b>' + esc(p.name) + '</b>が「' + esc(pr.name) + '」を' + fmt(r.price) + 'で購入。', 'buy');
+          });
+          Au.play('buy'); UI.confetti($('#modal-root'), 30);
+          app.view.refresh(s); renderHud(); app.view.pulseStation(st.id);
+          if (!canAfford()) m.close(true); else render(); // もう買えるものがなければ、そのまま閉じる
+        });
+      }
       body.appendChild(h('div.shop-head', h('span', { html: Art.coin(20) + ' 所持金 <b>' + fmt(p.cash) + '</b>' }),
-        sale ? h('span.chip.chip--sale', '半額セール中!') : null));
+        sale ? h('span.chip.chip--sale', '半額セール中!') : null, bulkBtn));
       body.appendChild(h('div.shop-about', h('span.chip', REGION[st.region]), h('p.station-desc', st.desc)));
       const mono = L.monopolyOwner(s, st.id);
       body.appendChild(h('p.hint', mono === idx ? 'この駅を独占しています（利回り2倍）!' : 'この駅の物件を全部買うと利回りが2倍に。自分の物件は「増資」で価格と収入を増やせます（最大3回）。'));
@@ -792,6 +864,7 @@
     };
     render();
     await m.promise;
+    stop();
   }
 
   // ---------- カード売り場 ----------
@@ -811,8 +884,12 @@
 
   async function humanCardShop(s, idx, st) {
     const p = s.players[idx];
+    // 手札がいっぱい・お金が足りないときは、売り場を出さない
+    if (p.cards.length >= A.HAND_LIMIT || !L.cardStock(s, st.id).some((cid) => p.cash >= L.cardPrice(s, cid))) return;
     const body = h('div.cards-grid');
     const m = modal({ title: esc(st.name) + 'のカード売り場', body, dismiss: false, cls: 'modal--wide', actions: [{ label: 'おわる', value: true, color: 'pear' }] });
+    const stop = startTimer(() => m.close(true));
+    m.promise.then(stop);
     const render = () => {
       body.innerHTML = '';
       body.appendChild(h('p.hint.span-all', { html: Art.coin(18) + ' 所持金 <b>' + fmt(p.cash) + '</b> ・ 手札 ' + p.cards.length + '/' + A.HAND_LIMIT + '枚。ほしいカードをえらんでね（買わなくてもOK）。' }));
@@ -1054,7 +1131,9 @@
     renderHud(); app.view.refresh(s);
     UI.log(res.year + '年目の決算。1位は<b>' + esc(s.players[res.ranking[0]].name) + '</b>(' + fmt(res.results[res.ranking[0]].assets) + ')', 'sys');
     if (everyCpu) { setTimeout(() => m.close(true), Math.max(400, 2600 * UI.rt.speed)); }
+    const stop = everyCpu ? () => {} : startTimer(() => m.close(true));
     await m.promise;
+    stop();
   }
 
   function lineChart(s) {

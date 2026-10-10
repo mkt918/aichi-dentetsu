@@ -105,17 +105,21 @@
   const confirmBox = (title, body, yes, no) => modal({ title, body, actions: [{ label: no || 'やめる', value: false, kind: 'outline', color: 'ink' }, { label: yes || 'OK', value: true }] }).promise;
 
   // ---------- バナー・ログ ----------
-  let bannerTimer = null;
+  // バナーは時間で消える。タップすると、待たずにすぐ次へ進む
+  let bannerSkip = null;
   async function banner(o, ms) {
     const el = $('#banner');
     el.className = 'banner is-show banner--' + (o.kind || 'info');
     el.innerHTML = (o.art ? '<div class="banner-art">' + o.art + '</div>' : '') +
       '<div class="banner-text"><strong>' + (o.title || '') + '</strong>' + (o.sub ? '<span>' + o.sub + '</span>' : '') + '</div>';
-    clearTimeout(bannerTimer);
-    try { await sleep(ms || 1100); } finally {
+    const wait = sleep(ms || 1100);
+    wait.catch(() => {}); // タップで先に進んだあとに中断されても、エラーにしない
+    try { await Promise.race([wait, new Promise((r) => { bannerSkip = r; })]); } finally {
+      bannerSkip = null;
       el.classList.remove('is-show');
     }
   }
+  doc.addEventListener('click', (e) => { if (bannerSkip && e.target.closest && e.target.closest('#banner')) bannerSkip(); });
   function log(text, kind) {
     const ol = $('#log');
     if (!ol) return;

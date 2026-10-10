@@ -66,7 +66,7 @@
     }));
     const s = {
       v: 1, rng: ((seed != null ? seed : Math.random() * 4294967296) >>> 0),
-      config: { years: cfg.years || 1, debug: !!cfg.debug, mode: cfg.mode || 'versus', mapId: (A.MAP_INFO && A.MAP_INFO.id) || 'full' },
+      config: { years: cfg.years || 1, debug: !!cfg.debug, mode: cfg.mode || 'versus', mapId: (A.MAP_INFO && A.MAP_INFO.id) || 'full', timeLimit: Math.max(0, +cfg.timeLimit || 0) }, // timeLimit: 人の持ち時間（秒。0=なし）
       round: 0, turnIdx: 0, players, owners: {}, levels: {}, dest: null, destBase: 0, godHolder: -1,
       turn: freshTurn(), log: [], finished: false, yearly: [],
     };

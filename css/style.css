@@ -238,6 +238,13 @@ small { font-size: var(--text-xs); }
 .speed-box[hidden] { display: none; }
 .speed-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px 0 10px; border: 0; border-radius: var(--radius-pill); background: var(--color-paper); font-weight: 800; font-size: var(--text-sm); box-shadow: 0 2px 0 0 var(--color-rule), 0 6px 14px -6px oklch(20% 0.012 250 / 0.35); }
 .speed-btn:hover { background: var(--color-accent); }
+/* 持ち時間（モーダルの上にも出す） */
+.turn-timer { position: fixed; left: 50%; top: max(8px, env(safe-area-inset-top)); transform: translateX(-50%); z-index: 80; pointer-events: none;
+  padding: 6px 14px; border-radius: var(--radius-pill); background: var(--color-paper); font-weight: 800; font-size: var(--text-sm);
+  box-shadow: 0 2px 0 0 var(--color-rule), 0 6px 14px -6px oklch(20% 0.012 250 / 0.35); }
+.turn-timer[hidden] { display: none; }
+.turn-timer.is-low { background: var(--color-accent-3); color: var(--color-paper); }
+.shop-bulk { margin-left: auto; }
 
 .banner {
   position: absolute; left: 50%; top: 12%; z-index: 5; max-width: min(92%, 560px); pointer-events: none;
@@ -245,7 +252,7 @@ small { font-size: var(--text-xs); }
   background: var(--color-paper); box-shadow: 0 5px 0 0 var(--color-rule), 0 18px 34px -12px oklch(20% 0.012 250 / 0.45);
   opacity: 0; transform: translate(-50%, -14px) scale(0.92); transition: opacity 160ms, transform 260ms var(--ease-spring);
 }
-.banner.is-show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.banner.is-show { opacity: 1; transform: translate(-50%, 0) scale(1); pointer-events: auto; cursor: pointer; } /* タップで次へ */
 .banner-art { flex: none; display: grid; place-items: center; }
 .banner-text { display: grid; gap: 2px; min-width: 0; }
 .banner-text strong { font-family: var(--font-display); font-size: 1.2rem; line-height: 1.25; letter-spacing: -0.01em; overflow-wrap: anywhere; }

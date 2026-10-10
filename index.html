@@ -45,6 +45,11 @@
         <div id="years-pick" class="seg" role="radiogroup" aria-label="あそぶ長さ"></div>
         <p id="years-note" class="hint"></p>
       </fieldset>
+      <fieldset class="setup-block" id="time-block">
+        <legend>持ち時間</legend>
+        <div id="time-pick" class="seg" role="radiogroup" aria-label="持ち時間"></div>
+        <p class="hint">人の番で、サイコロ・行き先・買い物などを決めるまでの時間。時間がきたら、CPUが代わりに決めます。</p>
+      </fieldset>
       <fieldset class="setup-block">
         <legend>プレイヤー</legend>
         <div id="slots" class="slots"></div>
@@ -98,6 +103,7 @@
   <section id="screen-result" class="screen screen--result" hidden></section>
 
   <div id="modal-root"></div>
+  <div id="turn-timer" class="turn-timer" role="timer" aria-live="off" hidden></div>
 </div>
 
 <script src="js/stations.js"></script>
