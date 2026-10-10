@@ -1182,6 +1182,9 @@
     $('#btn-rules').addEventListener('click', () => { Au.unlock(); Au.play('click'); showRules(); });
     $('#btn-sound-title').addEventListener('click', toggleSound);
     $('#btn-editor').addEventListener('click', () => { Au.unlock(); Au.play('click'); A.Editor.open(); });
+    // エディターで縮尺のちがうマップに切りかえて読みこみ直したときは、そのままエディターを開く
+    let editing = null; try { editing = sessionStorage.getItem(A.EDIT_MAP_KEY); } catch (e) { /* 無視 */ }
+    if (editing) A.Editor.open();
     $('#btn-setup-back').addEventListener('click', () => { Au.play('click'); renderTitle(); });
     $('#btn-start').addEventListener('click', () => {
       Au.unlock(); Au.play('click');

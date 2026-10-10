@@ -1,6 +1,6 @@
 /* 盤面の整合性チェック: node test/validate-map.js */
 'use strict';
-['stations', 'stationtext', 'overrides', 'data', 'layout', 'mapdata', 'board'].forEach((f) => require('../js/' + f + '.js'));
+['stations', 'stationtext', 'overrides', 'mapdata', 'data', 'layout', 'board'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi;
 const B = A.Board, G = A.GRID;
 let problems = 0;
@@ -91,7 +91,10 @@ const kinds = {};
 B.links.forEach((l) => { kinds[l.kind] = (kinds[l.kind] || 0) + 1; });
 note('道の種類 ' + JSON.stringify(kinds));
 A.STATIONS.forEach((s) => { if (!B.byId[s.id].adj.length) warn('道につながっていない駅: ' + s.name); });
-if (FULL && A.STATIONS.length !== A.RAW_STATIONS.length) warn('盤面に置かれていない駅: ' + A.RAW_STATIONS.filter((r) => !A.STATIONS.some((s) => s.id === r.id)).map((r) => r.name).join(' '));
+// 県全体のマップには、細かさ1（lv なし）の駅がぜんぶ置かれているはず（lv: 2 は地域の細かいマップだけの駅）
+const LV1 = A.RAW_STATIONS.filter((r) => (r.lv || 1) <= 1);
+if (FULL && LV1.some((r) => !A.STATIONS.some((s) => s.id === r.id))) warn('盤面に置かれていない駅: ' + LV1.filter((r) => !A.STATIONS.some((s) => s.id === r.id)).map((r) => r.name).join(' '));
+if (FULL && A.STATIONS.some((s) => s.lv > 1)) warn('県全体のマップに細かいマップだけの駅がある');
 
 // 5. 行き方が複数ある駅（橋＝切るとつながらなくなる道、をのぞいた輪の中にある駅）が7割以上
 {

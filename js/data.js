@@ -4,10 +4,32 @@
   'use strict';
   const A = (root.Aichi = root.Aichi || {});
 
+  // ---- 遊ぶマップ（タイトルでえらんだもの）。用意されたマップ（A.MAPPRESETS）か、エディターで作ったマップ（OVERRIDES.maps） ----
+  // マップごとに縮尺（scale）がちがう。地域をしぼったマップは大きく描いて、駅を細かく置く
+  const ENV = (typeof process !== 'undefined' && process.env) || {};
+  const EDIT_MAP_KEY = 'aichi-dentetsu-editing-map';
+  function allMaps() {
+    const presets = (A.MAPPRESETS || [{ id: 'full', name: '愛知県', start: 'nagoya', cells: A.MAPDATA || [] }]).map((m) => Object.assign({ builtin: true }, m));
+    const own = (A.OVERRIDES && A.OVERRIDES.maps) || {};
+    const ok = (c) => Array.isArray(c) && c.length > 10 && c.every((r) => Array.isArray(r) && Number.isFinite(r[0]) && Number.isFinite(r[1]));
+    return presets.concat(Object.keys(own).filter((id) => own[id] && ok(own[id].cells)).map((id) => ({ id, name: own[id].name || '自作マップ', desc: own[id].desc || 'エディターで作った盤面', start: own[id].start || 'nagoya', scale: +own[id].scale || 1, cells: own[id].cells, builtin: false })));
+  }
+  function currentMap() {
+    let editing = null; // エディターで縮尺のちがうマップを開いたとき（読みこみ直しのあいだだけ）
+    try { editing = root.sessionStorage && root.sessionStorage.getItem(EDIT_MAP_KEY); } catch (e) { /* 無視 */ }
+    const want = ENV.MAP || editing || (A.OVERRIDES && A.OVERRIDES.mapId) || 'full';
+    const list = allMaps();
+    return list.find((m) => m.id === want) || list[0];
+  }
+  const MAP = currentMap();
+  const PLACED = new Set((MAP.cells || []).filter((c) => c[2] === 'S').map((c) => c[3])); // このマップに置かれている駅
+  const MAP_SCALE = +ENV.MAP_SCALE || +MAP.scale || 1; // 盤面を作るとき（tools/genmap.js）は環境変数でわたす
+
   /** 世界の拡大率。デザイン空間を何倍にして画面の px にするか */
   const K = 2.0;
   // 経度・緯度 → デザイン空間（K倍する前）。経度は緯度35度の縮みを入れて、実際の縦横比にする。SCALE で全体を大きくする
-  const SCALE = 1.8;
+  // MAP_SCALE はマップごとの倍率（愛知県=1、地域のマップは2倍など）
+  const SCALE = 1.8 * MAP_SCALE;
   const proj = (lon, lat) => [(lon - 136.6) * 860 * SCALE, (35.45 - lat) * 1050 * SCALE];
 
   // ---- 物件の利回り: 安い物件ほど高く(50%〜)、高い物件ほど低く(1〜3%)。名物度(隠しデータ)が高いほど高い ----
@@ -36,13 +58,16 @@
 
   const OV = A.OVERRIDES || { pos: {}, edges: null, props: {} };
   // 物件の一覧 [名前, アイコン, 価格, 名物度]。エディターの上書きがあればそれを使う。安い順に並べる
+  // 元データの5つ目（home）は、その名所の本来の駅。本来の駅がこのマップに置かれていれば、そちらの物件にする（細かいマップ用）
+  const moved = (it) => it[4] && PLACED.has(it[4]);
   const itemsOf = (r) => {
     const ov = OV.props && OV.props[r.id];
-    const list = ov ? ov.map((it) => it.slice()) : r.items.map((it) => [it[0], it[1], finalPrice(it[0], it[1], it[2], it[3]), it[3]]);
+    const own = r.items.filter((it) => !moved(it)).concat(...A.RAW_STATIONS.map((o) => o.items.filter((it) => moved(it) && it[4] === r.id)));
+    const list = ov ? ov.map((it) => it.slice()) : own.map((it) => [it[0], it[1], finalPrice(it[0], it[1], it[2], it[3]), it[3]]);
     return list.map((it, i) => ({ it, i })).sort((a, b) => a.it[2] - b.it[2] || a.i - b.i).map((o) => o.it);
   };
   const STATIONS = A.RAW_STATIONS.map((r) => ({
-    id: r.id, name: r.name, region: r.region, lon: r.lon, lat: r.lat, desc: r.desc, tag: r.tag || r.desc,
+    id: r.id, name: r.name, region: r.region, lv: r.lv || 1, lon: r.lon, lat: r.lat, desc: r.desc, tag: r.tag || r.desc,
     shop: !!r.shop,     // カード売り場がある
     plain: !!r.plain && !(OV.props && OV.props[r.id] && OV.props[r.id].length), // 地下鉄の駅など。物件もカードもなく、止まると少しおこづかい
     card: !!r.card && !(OV.props && OV.props[r.id] && OV.props[r.id].length), // 物件のないカード駅（止まるとカードがもらえる）
@@ -53,34 +78,37 @@
 
   // ---- 路線: 実際の鉄道の並び（間の駅はぬいてある）。同じ区間が複数の路線にあれば1本にまとめる ----
   const LINES = [
-    ['東山線', ['nakamura', 'nagoya', 'sakae', 'imaike', 'higashiyama', 'fujigaoka']],
+    ['東山線', ['nakamura', 'nagoya', 'sakae', 'imaike', 'kakuozan', 'higashiyama', 'fujigaoka']],
     ['名城線', ['sakae', 'nagoyajo', 'ozone']],
-    ['名城線(東)', ['higashiyama', 'yagoto', 'kanayama']],
+    ['名城線(東)', ['higashiyama', 'yagoto', 'mizuho', 'kanayama']],
     ['名港線', ['kanayama', 'nagoyakou']],
     ['桜通線', ['yagoto', 'tokushige']],
-    ['あおなみ線', ['nagoya', 'kinjo']],
-    ['JR東海道線', ['kisogawa', 'ichinomiya', 'inazawa', 'kiyosu', 'nagoya', 'kanayama', 'atsuta', 'arimatsu', 'obu', 'kariya', 'anjo', 'okazaki', 'kota', 'gamagori', 'mitani', 'kozakai', 'toyohashi', 'futagawa']],
-    ['名鉄名古屋本線', ['atsuta', 'arimatsu', 'toyoake', 'chiryu', 'anjo', 'okazaki', 'fujikawa', 'goyu', 'kozakai']],
-    ['JR中央線', ['kanayama', 'imaike', 'ozone', 'kachigawa', 'kozoji']],
-    ['名鉄瀬戸線', ['sakae', 'ozone', 'obata', 'asahi', 'seto']],
-    ['名鉄犬山線', ['nagoya', 'nishiharu', 'iwakura', 'konan', 'inuyama']],
+    ['あおなみ線', ['nagoya', 'arako', 'kinjo']],
+    ['JR東海道線', ['kisogawa', 'ichinomiya', 'inazawa', 'kiyosu', 'nagoya', 'kanayama', 'atsuta', 'kasadera', 'odaka', 'arimatsu', 'obu', 'kariya', 'anjo', 'okazaki', 'kota', 'gamagori', 'mitani', 'kozakai', 'toyohashi', 'futagawa']],
+    ['名鉄名古屋本線', ['atsuta', 'kasadera', 'narumi', 'arimatsu', 'toyoake', 'chiryu', 'anjo', 'okazaki', 'fujikawa', 'akasaka', 'goyu', 'kozakai']],
+    ['JR中央線', ['kanayama', 'tsurumai', 'imaike', 'ozone', 'kachigawa', 'kozoji']],
+    ['名鉄瀬戸線', ['sakae', 'tokugawaen', 'ozone', 'obata', 'asahi', 'seto']],
+    ['名鉄犬山線', ['nagoya', 'sako', 'shonai', 'nishiharu', 'iwakura', 'konan', 'fuso', 'inuyama']],
     ['名鉄小牧線', ['nagoyajo', 'kachigawa', 'komaki', 'inuyama']],
-    ['名鉄津島線・尾西線', ['kiyosu', 'tsushima', 'yatomi']],
-    ['名鉄尾西線', ['tsushima', 'ichinomiya']],
+    ['名鉄津島線・尾西線', ['kiyosu', 'jimokuji', 'tsushima', 'yatomi']],
+    ['名鉄尾西線', ['tsushima', 'sobue', 'okoshi', 'ichinomiya']],
     ['JR関西線', ['nakamura', 'kanie', 'yatomi']],
     ['リニモ', ['fujigaoka', 'nagakute']],
-    ['愛知環状鉄道', ['okazaki', 'toyota', 'seto', 'kozoji']],
+    ['愛知環状鉄道', ['okazaki', 'daijuji', 'toyotahonsha', 'toyota', 'seto', 'kozoji']],
     ['名鉄豊田線', ['yagoto', 'nisshin', 'miyoshi', 'toyota']],
     ['名鉄三河線', ['sanage', 'toyota', 'chiryu', 'kariya', 'takahama', 'hekinan']],
-    ['名鉄常滑線', ['atsuta', 'tokai', 'chita', 'tokoname']],
-    ['名鉄河和線', ['tokai', 'agui', 'handa', 'taketoyo', 'kowa']],
-    ['名鉄知多新線', ['taketoyo', 'noma', 'utsumi']],
-    ['JR武豊線', ['obu', 'handa']],
-    ['名鉄西尾線・蒲郡線', ['anjo', 'nishio', 'kira', 'hazu', 'katahara', 'gamagori']],
+    ['名鉄常滑線', ['atsuta', 'tokai', 'chita', 'shinmaiko', 'rinku', 'tokoname']],
+    ['名鉄河和線', ['tokai', 'agui', 'handa', 'taketoyo', 'fuki', 'kowa']],
+    ['名鉄知多新線', ['taketoyo', 'fuki', 'noma', 'utsumi']],
+    ['JR武豊線', ['obu', 'ogawa', 'kamezaki', 'handa']],
+    ['名鉄西尾線・蒲郡線', ['anjo', 'sakurai', 'nishio', 'kira', 'hazu', 'katahara', 'gamagori']],
     ['西浦半島', ['katahara', 'nishiura']],
     ['名鉄豊川線', ['goyu', 'toyokawa']],
-    ['JR飯田線', ['toyohashi', 'toyokawa', 'shinshiro', 'nagashino', 'horaiji', 'toei']],
-    ['豊鉄渥美線', ['toyohashi', 'tahara']],
+    ['JR飯田線', ['toyohashi', 'toyokawa', 'mikawaichinomiya', 'shinshiro', 'nagashino', 'horaiji', 'toei']],
+    ['豊鉄渥美線', ['toyohashi', 'oitsu', 'tahara']]
+    // ここから下は、細かいマップだけの駅をふくむ路線（県全体のマップでは、もとからある区間しか残らない）
+    , ['鶴舞線', ['shonai', 'osu', 'tsurumai', 'yagoto', 'hirabari', 'nisshin']],
+    ['桜通線(西)', ['imaike', 'mizuho', 'narumi']],
   ];
   // 線路の並びでは結べないもの（橋・海路）。opt: bridge=橋 / sea=フェリー / prio=盤面を作るとき先に引く
   const SPECIAL = [
@@ -105,12 +133,12 @@
   [['tahara', 'fukue', 4], ['fukue', 'irago', 3], ['tahara', 'akabane', 3], ['futagawa', 'akabane', 2]].forEach(([a, b, p]) => SPECIAL.push([a, b, { prio: p }]));
   // 道路: [名前, 種類, 駅の並び]。種類 expressway=高速道路 / national=国道 / pref=県道（盤面では線路として引く）
   const ROADS = [
-    ['伊勢湾岸道', 'expressway', ['yatomi', 'kinjo', 'nagoyakou', 'tokai']],
+    ['伊勢湾岸道', 'expressway', ['yatomi', 'tobishima', 'kinjo', 'nagoyakou', 'tokai']],
     ['名神高速', 'expressway', ['komaki', 'ichinomiya']],
     ['知多半島道路', 'expressway', ['obu', 'agui']],
     ['南知多道路', 'expressway', ['kowa', 'morozaki']],
-    ['国道247号', 'national', ['tokoname', 'noma', 'utsumi', 'morozaki']],
-    ['国道41号', 'national', ['nishiharu', 'komaki']],
+    ['国道247号', 'national', ['tokoname', 'kosugaya', 'noma', 'utsumi', 'toyohama', 'morozaki']],
+    ['国道41号', 'national', ['nishiharu', 'toyoyama', 'komaki']],
     ['国道155号', 'national', ['kisogawa', 'konan']],
     ['国道155号(瀬戸)', 'national', ['meijimura', 'kozoji']],
     ['国道155号(豊田)', 'national', ['seto', 'sanage']],
@@ -127,7 +155,7 @@
     ['県道（西尾）', 'pref', ['hekinan', 'isshiki', 'kira']],
     ['県道（一色）', 'pref', ['nishio', 'isshiki']],
     ['県道（幸田）', 'pref', ['nishio', 'kota', 'hazu']],
-    ['国道259号', 'national', ['toyohashi', 'tahara', 'fukue', 'irago']],
+    ['国道259号', 'national', ['toyohashi', 'oitsu', 'tahara', 'fukue', 'irago']],
     ['国道42号', 'national', ['futagawa', 'akabane']],
     ['県道（二川）', 'pref', ['futagawa', 'tahara']],
     ['県道（田原）', 'pref', ['tahara', 'akabane']],
@@ -138,10 +166,65 @@
     ['県道（刈谷）', 'pref', ['kariya', 'obu']],
     ['県道（徳重）', 'pref', ['tokushige', 'arimatsu']],
     ['県道（蟹江）', 'pref', ['kanie', 'kiyosu']],
+    // 細かいマップの道（名古屋市）
+    ['県道', 'pref', ['osu', 'kanayama']],
+    ['県道', 'pref', ['osu', 'sakae']],
+    ['県道', 'pref', ['arako', 'nakamura']],
+    ['県道', 'pref', ['sako', 'nagoyajo']],
+    ['県道', 'pref', ['obata', 'shidami']],
+    ['県道', 'pref', ['shidami', 'kozoji']],
+    ['県道', 'pref', ['hirabari', 'tokushige']],
+    ['県道', 'pref', ['narumi', 'tokushige']],
+    ['県道', 'pref', ['odaka', 'tokai']],
+    // 細かいマップの道（尾張）
+    ['県道', 'pref', ['toyoyama', 'kachigawa']],
+    ['県道', 'pref', ['nisshin', 'togo']],
+    ['県道', 'pref', ['togo', 'toyoake']],
+    ['県道', 'pref', ['togo', 'miyoshi']],
+    ['県道', 'pref', ['seto', 'akazu']],
+    ['県道', 'pref', ['akazu', 'sanage']],
+    ['県道', 'pref', ['tobishima', 'kanie']],
+    ['県道', 'pref', ['jimokuji', 'nakamura']],
+    ['県道', 'pref', ['fuso', 'meijimura']],
+    ['県道', 'pref', ['okoshi', 'kisogawa']],
+    ['県道', 'pref', ['sobue', 'inazawa']],
+    // 細かいマップの道（知多）
+    ['県道', 'pref', ['kamezaki', 'agui']],
+    ['県道', 'pref', ['shinmaiko', 'agui']],
+    // 細かいマップの道（西三河）
+    ['県道', 'pref', ['toyota', 'kuragaike']],
+    ['県道', 'pref', ['kuragaike', 'sanage']],
+    ['県道', 'pref', ['shimoyama', 'matsudaira']],
+    ['県道', 'pref', ['shimoyama', 'nukata']],
+    ['県道', 'pref', ['nukata', 'fujikawa']],
+    ['県道', 'pref', ['shimoyama', 'asuke']],
+    // 細かいマップの道（東三河）
+    ['県道', 'pref', ['kozakai', 'mikawako']],
+    ['県道', 'pref', ['mikawako', 'oitsu']],
+    ['県道', 'pref', ['ishimaki', 'toyokawa']],
+    ['県道', 'pref', ['ishimaki', 'futagawa']],
+    ['県道', 'pref', ['mikawaichinomiya', 'ishimaki']],
   ];
 
-  /** 路線・特別な区間・道路から、駅と駅の区間の一覧を作る（[駅A, 駅B, {kinds: 種類のならび, sea, bridge}]）。同じ区間は1本にまとめる */
-  const EDGES = (() => {
+  // マップごとに足す道（そのマップだけ）。[駅A, 駅B, opt]。prio は盤面を作るとき先に引く順番（大きいほど先）
+  // 地域をしぼると、県全体ではほかの地域を通っていた道がなくなるので、その代わりの道や、行き止まりを減らす道を足す
+  const MAP_ROADS = {
+    nagoya: [['kinjo', 'nagoyakou', { prio: 2 }], ['mizuho', 'kanayama', { prio: 2 }], ['nagoyakou', 'kasadera'], ['fujigaoka', 'hirabari'], ['fujigaoka', 'shidami'], ['shonai', 'nagoyajo'], ['shonai', 'ozone']],
+    owari: [],
+    chita: [['tokoname', 'handa', { prio: 1 }], ['noma', 'kowa'], ['kosugaya', 'noma', { prio: 2 }], ['shinmaiko', 'rinku', { prio: 2 }], ['rinku', 'tokoname', { prio: 2 }]],
+    nishimikawa: [['okazaki', 'daijuji', { prio: 2 }], ['daijuji', 'toyotahonsha', { prio: 2 }], ['toyotahonsha', 'toyota', { prio: 2 }], ['toyota', 'kuragaike', { prio: 1 }], ['kuragaike', 'sanage', { prio: 1 }], ['sanage', 'obara', { prio: 1 }], ['obara', 'asuke', { prio: 1 }], ['asuke', 'inabu', { prio: 1 }], ['inabu', 'obara'], ['miyoshi', 'chiryu'], ['miyoshi', 'toyotahonsha'], ['toyota', 'matsudaira'],
+      ['okazaki', 'kota', { prio: 2 }], ['nishio', 'kota', { prio: 1 }], ['kota', 'hazu', { prio: 1 }], ['chiryu', 'toyota', { prio: 1 }]],
+    // 東三河: まず豊橋から出る路線を引く（まわりの道を先に引くと、豊橋が囲まれて路線を引けなくなる）
+    higashimikawa: [['toyohashi', 'oitsu', { prio: 6 }], ['toyohashi', 'kozakai', { prio: 6 }], ['toyohashi', 'toyokawa', { prio: 6 }], ['toyohashi', 'futagawa', { prio: 6 }],
+      ['oitsu', 'tahara', { prio: 5 }], ['toyokawa', 'mikawaichinomiya', { prio: 4 }], ['mikawaichinomiya', 'shinshiro', { prio: 4 }], ['goyu', 'kozakai', { prio: 3 }], ['mitani', 'kozakai', { prio: 3 }],
+      ['tahara', 'akabane', { prio: 2 }], ['oitsu', 'akabane', { prio: 3 }], ['kozakai', 'mikawako', { prio: 1 }], ['gamagori', 'akasaka', { prio: 1 }], ['ishimaki', 'toyokawa', { prio: 1 }], ['ishimaki', 'futagawa', { prio: 1 }], ['shitara', 'horaiji', { prio: 2 }],
+      ['akasaka', 'tsukude', { prio: 1 }], ['tsukude', 'shitara', { prio: 1 }], ['shitara', 'toei', { prio: 2 }], ['chausu', 'toyone', { prio: 2 }], ['tsugu', 'chausu', { prio: 2 }]],
+  };
+
+  /** 路線・特別な区間・道路から、駅と駅の区間の一覧を作る（[駅A, 駅B, {kinds, sea, bridge, prio, rail}]）。同じ区間は1本にまとめる。
+   * ids の駅だけを使う。路線の途中の駅がなければ、とばして前後の駅をつなぐ（細かいマップだけにある駅は、県全体のマップではとばされる）。
+   * rail は実際の鉄道の区間（盤面を作るとき、道路より先に引く） */
+  function buildEdges(ids, mapId) {
     const map = new Map(), order = [];
     const add = (a, b, opt, kind) => {
       const key = [a, b].sort().join('|');
@@ -150,20 +233,22 @@
       e.kinds.add(kind);
       if (opt) Object.assign(e.opt, opt);
     };
-    const pairs = (stops, fn) => { for (let i = 0; i < stops.length - 1; i++) fn(stops[i], stops[i + 1]); };
-    LINES.forEach(([, stops]) => pairs(stops, (x, y) => add(x, y, null, 'rail')));
-    SPECIAL.forEach(([x, y, opt]) => add(x, y, opt, opt.sea ? 'sea' : 'bridge'));
+    const pairs = (stops, fn) => { const s = stops.filter((x) => ids.has(x)); for (let i = 0; i < s.length - 1; i++) fn(s[i], s[i + 1]); };
+    LINES.forEach(([, stops]) => pairs(stops, (x, y) => add(x, y, { rail: true }, 'rail')));
+    // prio だけの指定は、この盤面で路線・道路のとなりどうしになっている区間にだけつける（あいだに細かいマップの駅が入ると、とばす）
+    const near = new Set(); const mark = (stops) => { const s = stops.filter((x) => ids.has(x)); for (let i = 0; i + 1 < s.length; i++) near.add([s[i], s[i + 1]].sort().join('|')); };
+    LINES.forEach(([, st]) => mark(st)); ROADS.forEach(([, , st]) => mark(st)); (MAP_ROADS[mapId] || []).forEach(([x, y]) => mark([x, y]));
+    SPECIAL.forEach(([x, y, opt]) => {
+      if (!ids.has(x) || !ids.has(y)) return;
+      if (!opt.sea && !opt.bridge && !near.has([x, y].sort().join('|'))) return;
+      add(x, y, Object.assign({}, opt, opt.sea || opt.bridge ? { rail: true } : null), opt.sea ? 'sea' : 'bridge');
+    });
     ROADS.forEach(([, kind, stops]) => pairs(stops, (x, y) => add(x, y, null, kind)));
+    (MAP_ROADS[mapId] || []).forEach(([x, y, opt]) => { if (ids.has(x) && ids.has(y)) add(x, y, opt, 'pref'); });
     // 道の種類は「線路」と「海路」の2つだけ（高速・国道・県道・橋も線路として引く）
     return order.map((e) => [e.a, e.b, Object.assign({}, e.opt, { kinds: e.opt.sea ? ['sea'] : ['rail'] })]);
-  })();
-  const DEFAULT_EDGES = EDGES.map((e) => e.slice());
-  // マップエディターで変えた路線があれば差しかえる（存在しない駅をふくむものは捨てる）
-  if (OV.edges && Array.isArray(OV.edges) && OV.edges.length) {
-    const ids = new Set(STATIONS.map((s) => s.id));
-    const ok = OV.edges.filter((e) => e && ids.has(e[0]) && ids.has(e[1]));
-    if (ok.length) { EDGES.length = 0; ok.forEach((e) => { const o = e[2] || {}; EDGES.push([e[0], e[1], Object.assign({}, o, { kinds: o.sea ? ['sea'] : ['rail'] })]); }); }
   }
+  const EDGES = buildEdges(PLACED.size ? PLACED : new Set(STATIONS.filter((s) => s.lv <= 1).map((s) => s.id)), MAP.id);
 
   // ---- 地図は四角いグリッドで区切る。駅も道も、グリッドの1マスにぴったり入れる ----
   const GRID = 34;                         // 1マスの大きさ（画面の px）
@@ -236,5 +321,5 @@
   ];
   const BORDER_END = 30; // ここ（静岡県との境が海に出るところ）までが陸の県境
 
-  Object.assign(A, { K, proj, rateFor, finalPrice, ICON_MULT, REGION, STATIONS, LINES, ROADS, EDGES, DEFAULT_EDGES, GRID, SQUARE_SCALE, STATION_SCALE, SQUARE_MIX, CARDS, HAND_LIMIT, EVENTS, CHARS, OUTLINE_LONLAT, BORDER_END });
+  Object.assign(A, { K, proj, rateFor, finalPrice, ICON_MULT, REGION, STATIONS, LINES, ROADS, EDGES, buildEdges, allMaps, MAP_INFO: { id: MAP.id, name: MAP.name, start: MAP.start, builtin: MAP.builtin, scale: MAP_SCALE }, CURRENT_MAP: MAP, EDIT_MAP_KEY, GRID, SQUARE_SCALE, STATION_SCALE, SQUARE_MIX, CARDS, HAND_LIMIT, EVENTS, CHARS, OUTLINE_LONLAT, BORDER_END });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

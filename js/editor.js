@@ -19,12 +19,13 @@
   const ed = { tab: 'map', W: null, dirty: false, undo: [], redo: [], tool: 'rail', paint: 'b', selSt: null, search: '' };
 
   // ---------- 作業コピー ----------
+  const EDIT_MAP_KEY = A.EDIT_MAP_KEY; // 縮尺のちがうマップをエディターで開くとき、読みこみ直しのあいだ覚えておく（data.js が読む）
   const ALL = () => A.ALL_STATIONS || A.STATIONS;
   // マップの一覧（用意されたもの＋自作。自作は保存のたびに変わるので、毎回 localStorage から読む）
   function mapsNow() {
     const own = A.Overrides.load().maps || {};
     return (A.MAPPRESETS || []).map((m) => Object.assign({ builtin: true }, m))
-      .concat(Object.keys(own).filter((id) => own[id] && Array.isArray(own[id].cells)).map((id) => ({ id, name: own[id].name || '自作マップ', start: own[id].start || 'nagoya', cells: own[id].cells, builtin: false })));
+      .concat(Object.keys(own).filter((id) => own[id] && Array.isArray(own[id].cells)).map((id) => ({ id, name: own[id].name || '自作マップ', start: own[id].start || 'nagoya', scale: +own[id].scale || 1, cells: own[id].cells, builtin: false })));
   }
   const mapById = (id) => mapsNow().find((m) => m.id === id) || mapsNow()[0];
   function loadWork(mapId) {
@@ -101,7 +102,7 @@
       if (W.mapName === base.name) W.mapName = base.name + '（改）';
       W.builtin = false;
     }
-    if (!W.builtin) out.maps[ed.mapId] = { name: W.mapName, start: W.start, cells: map };
+    if (!W.builtin) out.maps[ed.mapId] = { name: W.mapName, start: W.start, cells: map, scale: base.scale || 1 };
     allIds().forEach((id) => {
       const d = ALL().find((s) => s.id === id);
       const orig = d ? d.props.map((q) => [q.name, q.icon, q.price, q.fame]) : [];
@@ -118,6 +119,7 @@
       const r = await UI.confirm('保存していない変更があります', '保存してからゲームにもどりますか?', '保存してもどる', '保存しないでもどる');
       if (r && !save()) return;
     }
+    try { root.sessionStorage.removeItem(EDIT_MAP_KEY); } catch (e) { /* 無視 */ }
     location.reload(); // 保存した内容を反映するため読みこみ直す
   }
 
@@ -137,7 +139,9 @@
 
   // ---------- マップのえらび・コピー・名前・スタート ----------
   function switchMap(id) {
-    const go = () => { ed.W = Object.assign(loadWork(id), { props: ed.W.props, meta: ed.W.meta, extra: ed.W.extra }); ed.undo = []; ed.redo = []; ed.selSt = null; render(); };
+    // 縮尺のちがうマップは、駅の位置や県の形の大きさが変わるので、そのマップで読みこみ直してエディターを開きなおす
+    const reload = (mapById(id).scale || 1) !== ((A.MAP_INFO && A.MAP_INFO.scale) || 1);
+    const go = reload ? () => { try { root.sessionStorage.setItem(EDIT_MAP_KEY, mapById(id).id); } catch (e) { /* 無視 */ } location.reload(); } : () => { ed.W = Object.assign(loadWork(id), { props: ed.W.props, meta: ed.W.meta, extra: ed.W.extra }); ed.undo = []; ed.redo = []; ed.selSt = null; render(); };
     if (ed.dirty) UI.confirm('保存していない変更があります', '保存しないで、別のマップに切りかえますか?', '切りかえる', 'やめる').then((ok) => { if (ok) { ed.dirty = false; go(); } });
     else go();
   }
@@ -169,7 +173,7 @@
       if (!nm) return;
       const o = A.Overrides.load(); o.maps = o.maps || {};
       const id = 'my' + Date.now().toString(36);
-      o.maps[id] = { name: nm, start: ed.W.start, cells: Object.values(ed.W.map) };
+      o.maps[id] = { name: nm, start: ed.W.start, cells: Object.values(ed.W.map), scale: mapById(ed.mapId).scale || 1 };
       A.Overrides.save(o);
       ed.dirty = false; switchMap(id);
     });

@@ -209,11 +209,19 @@
       }
       return best;
     }
-    const want = Math.round(190 * f * f);   // 面積に比例して、かざりの数をふやす
+    // かざりを置く範囲。地域の細かいマップ（拡大したマップ）では県全体がとても大きいので、盤面のまわりだけにし、数は面積に比例させる
+    const sc = (A.MAP_INFO && A.MAP_INFO.scale) || 1;
+    let dx0 = x0, dx1 = x1, dy0 = y0, dy1 = y1;
+    if (sc > 1) {
+      const nx = B.nodes.map((n) => n.x), ny = B.nodes.map((n) => n.y);
+      dx0 = Math.max(x0, Math.min.apply(null, nx) - 500); dx1 = Math.min(x1, Math.max.apply(null, nx) + 500);
+      dy0 = Math.max(y0, Math.min.apply(null, ny) - 500); dy1 = Math.min(y1, Math.max.apply(null, ny) + 500);
+    }
+    const want = Math.round(190 * f * f * ((dx1 - dx0) * (dy1 - dy0)) / ((x1 - x0) * (y1 - y0) / (sc * sc)));   // 面積に比例して、かざりの数をふやす
     let deco = '';
     const placed = [];
     for (let k = 0; k < want * 80 && placed.length < want; k++) {
-      const x = x0 + rnd() * (x1 - x0), y = y0 + rnd() * (y1 - y0);
+      const x = dx0 + rnd() * (dx1 - dx0), y = dy0 + rnd() * (dy1 - dy0);
       if (!insidePoly(x, y, O) || distToCoast(x, y) < 16 * f) continue;
       if (nearStation(x, y) || nearRail(x, y, 24)) continue;
       if (placed.some((p) => Math.hypot(p[0] - x, p[1] - y) < 30 * f)) continue;

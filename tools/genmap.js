@@ -38,11 +38,12 @@ const isLand = (x, y) => { const k = x + ',' + y; if (!landC.has(k)) landC.set(k
 const K = (x, y) => x + ',' + y;
 
 // ---------- 1. 駅をマスに置く ----------
-// REGIONS=nagoya,owari のように地域をしぼると、その地域だけの盤面を作る（名古屋駅はスタートなので必ず入れる）
-const REG = process.env.REGIONS ? new Set(process.env.REGIONS.split(',')) : null;
-const S = REG ? A.STATIONS.filter((s) => REG.has(s.region) || s.id === (process.env.START || 'nagoya') || (process.env.EXTRA || '').split(',').includes(s.id)) : A.STATIONS;
+// SPEC='{"nagoya":2,"owari":1}' のように、地域ごとに「どの細かさ（lv）の駅まで入れるか」をわたすと、その地域だけの盤面を作る。
+// わたさなければ県全体（細かさ1の駅だけ）。スタートの駅（START）は必ず入れる。縮尺は MAP_SCALE（data.js が読む）
+const SPEC = process.env.SPEC ? JSON.parse(process.env.SPEC) : null;
+const S = A.STATIONS.filter((s) => (SPEC ? SPEC[s.region] || 0 : 1) >= s.lv || s.id === process.env.START);
 const SID = new Set(S.map((s) => s.id));
-const EDGES = A.EDGES.filter(([a, b]) => SID.has(a) && SID.has(b));
+const EDGES = A.buildEdges(SID, process.env.GEN_MAP); // GEN_MAP はマップのID（そのマップだけの道を足す）。 路線の途中の駅がこの盤面になければ、とばして前後をつなぐ
 const cell = {};
 const cheb = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]));
 const okAt = (id, x, y) => S.every((o) => o.id === id || !cell[o.id] || cheb(cell[o.id], [x, y]) >= 3) && (S.find((s) => s.id === id).island ? !isLand(x, y) : isLand(x, y));
@@ -168,15 +169,18 @@ function astar(a, b, water, strict) {
 }
 // つなぐ順: まず全駅がつながる「骨組み」（実際の鉄道を優先して短い順）、そのあと輪を作る道。
 // 1つの駅から出る道は4本まで（上下左右に1本ずつ）。道どうしは重ねず、くっつけない。
-const railKey = new Set(); A.LINES.forEach(([, st]) => { for (let i = 0; i + 1 < st.length; i++) railKey.add([st[i], st[i + 1]].sort().join('|')); });
-const all = EDGES.map(([a, b, opt]) => ({ a, b, water: !!(opt && (opt.sea || opt.bridge)), rail: railKey.has([a, b].sort().join('|')) || !!(opt && (opt.sea || opt.bridge)), len: Math.abs(cell[a][0] - cell[b][0]) + Math.abs(cell[a][1] - cell[b][1]), prio: (opt && +opt.prio) || 0 }));
-const w = (e) => -1000 * e.prio + e.len * (e.rail ? 1 : 1.6); // prio の道（骨組みにしたい道）は先に引く。数が大きいほど先
+const all = EDGES.map(([a, b, opt]) => ({ a, b, water: !!(opt && (opt.sea || opt.bridge)), rail: !!(opt && opt.rail), len: Math.abs(cell[a][0] - cell[b][0]) + Math.abs(cell[a][1] - cell[b][1]), prio: (opt && +opt.prio) || 0 }));
+// SEED を変えると、道を引く順番を少しゆらす（genall.js が何通りか作って、いちばん輪の多い盤面をえらぶ）。0 ならゆらさない
+const jr = +process.env.SEED ? mulberry32(+process.env.SEED) : null;
+all.forEach((e) => { e.j = jr ? 0.6 + 0.8 * jr() : 1; });
+const w = (e) => -1000 * e.prio + e.len * (e.rail ? 1 : 1.6) * e.j; // prio の道（骨組みにしたい道）は先に引く。数が大きいほど先
 all.sort((u, v) => w(u) - w(v));
 const degN = {}; S.forEach((s) => { degN[s.id] = 0; });
 const parent = {}; S.forEach((s) => { parent[s.id] = s.id; });
 const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])));
 const routes = [];
 const fails = [];
+const PRIO_TURNS = +process.env.PRIO_TURNS || 8; // 骨組みの道で許す曲がりの数（地域マップは genall.js が多めにわたす）
 function route(e, mode) {
   let path = null;
   if (mode !== 'loose') {
@@ -184,7 +188,7 @@ function route(e, mode) {
     c.sort((u, v) => u.length + turns(u) * 2 - (v.length + turns(v) * 2));
     if (c.length) path = c[0];
     if (!path) path = astar(e.a, e.b, e.water, true);
-    if (path && turns(path) > (e.prio ? 8 : 4)) path = null; // くねくねした道は作らない（骨組みの道は、海岸ぞいなどで少し曲がってもよい）
+    if (path && turns(path) > (e.prio ? PRIO_TURNS : 4)) path = null; // くねくねした道は作らない（骨組みの道は、海岸ぞいなどで少し曲がってもよい）
   } else {
     path = astar(e.a, e.b, e.water, true) || astar(e.a, e.b, e.water, false);
   }
