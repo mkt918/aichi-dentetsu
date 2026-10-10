@@ -52,7 +52,7 @@
       return [p[0] + sx / sw, p[1] + sy / sw];
     });
     // 路線図どおりに寄せる度合い（0=実際の位置の魚眼配置 / 1=路線図どおり）。大きいほど忠実だが、県の輪郭や島の位置とずれる
-    const BLEND = A.MAP_BLEND != null ? A.MAP_BLEND : 0.7;
+    const BLEND = A.MAP_BLEND != null ? A.MAP_BLEND : 0.55;
     base1 = base1.map((m, i) => { const f = fish(p0[i], S[i].pin); if (S[i].pin) return f; return [f[0] + (m[0] - f[0]) * BLEND, f[1] + (m[1] - f[1]) * BLEND]; });
   } else base1 = p0.map((p, i) => fish(p, S[i].pin));
   // 名古屋市の外がわ（尾張・知多・三河・渥美）も広げる。名古屋から離れるほど、ゆるやかに外へ
