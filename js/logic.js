@@ -9,7 +9,7 @@
   const STATION = {}; const PROP = {};
   A.STATIONS.forEach((s) => { STATION[s.id] = s; s.props.forEach((p) => { PROP[p.id] = p; }); });
 
-  const START_CASH = 3000;
+  const START_CASH = 5000;
   const START_STATION = A.START_STATION || 'nagoya'; // 盤面ごとのスタート駅（board.js が決める）
 
   // ---------- 乱数（state.rng を進めるので、セーブ＆再現ができる） ----------
@@ -42,7 +42,14 @@
   /** 金額の倍率。年が進むほど、また、みんなの資産がふえるほど大きくなる（青マスやボーナスが相場に合う） */
   function yf(s) {
     const avg = s.players.reduce((a, p) => a + assetsRaw(s, p.id), 0) / Math.max(1, s.players.length);
-    return 1 + 0.25 * (calendar(s).year - 1) + Math.max(0, avg) / 40000;
+    return 1 + 0.5 * (calendar(s).year - 1) + Math.max(0, avg) / 30000;
+  }
+  /** 季節で変わるマスの倍率。夏は青マス（もらえる）が多く、冬は赤マス（へる）が多い */
+  function seasonOf(s) {
+    const m = calendar(s).month;
+    if (m >= 6 && m <= 8) return { key: 'summer', name: '夏', blue: 2, red: 0.5, note: '夏: 青マスのお金が2倍・赤マスは半分' };
+    if (m === 12 || m <= 2) return { key: 'winter', name: '冬', blue: 0.5, red: 2, note: '冬: 赤マスでへるお金が2倍・青マスは半分' };
+    return { key: m <= 5 ? 'spring' : 'autumn', name: m <= 5 ? '春' : '秋', blue: 1, red: 1, note: '' };
   }
 
   function current(s) { return (s.round + s.turnIdx) % s.players.length; }
@@ -270,8 +277,8 @@
   function squareEffect(s, idx) {
     const p = s.players[idx], node = B.byId[p.pos], f = yf(s);
     switch (node.type) {
-      case 'blue': { const amount = round10((400 + rint(s, 3) * 200) * f); p.cash += amount; return { kind: 'blue', amount }; }
-      case 'red': { const amount = round10((200 + rint(s, 3) * 200) * f); p.cash -= amount; return { kind: 'red', amount }; }
+      case 'blue': { const se = seasonOf(s), amount = round10((400 + rint(s, 3) * 200) * f * se.blue); p.cash += amount; return { kind: 'blue', amount, season: se.blue !== 1 ? se.name : null }; }
+      case 'red': { const se = seasonOf(s), amount = round10((200 + rint(s, 3) * 200) * f * se.red); p.cash -= amount; return { kind: 'red', amount, season: se.red !== 1 ? se.name : null }; }
       case 'yellow': return { kind: 'yellow', card: drawCard(s) };
       case 'event': return applyEvent(s, idx, A.EVENTS[rint(s, A.EVENTS.length)]);
       default: return { kind: 'station', station: node.station };
@@ -465,7 +472,7 @@
   Object.assign(A, {
     Logic: {
       STATION, PROP, START_CASH, START_STATION,
-      rnd, rint, round10, fmt, calendar, yf, current, newGame, freshTurn,
+      rnd, rint, round10, fmt, calendar, yf, seasonOf, current, newGame, freshTurn,
       ownedProps, assets, ranking, monopolyOwner, propIncome, propPrice, priceFor, investCost, MAX_LEVEL, buy, invest, cardPrice, cardStock, buyCard, foodAwards,
       drawCard, gainCard, canUseCard, applyCard, buyoutTargets,
       pickDest, destBonus, arrive, godTransfer, godEffect, squareEffect, applyEvent,

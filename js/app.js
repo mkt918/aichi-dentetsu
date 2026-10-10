@@ -5,7 +5,7 @@
   const L = A.Logic, B = A.Board, UI = A.UI, Art = A.Art, AI = A.AI, Au = A.Audio;
   const { h, $, $$, esc, sleep, modal } = UI;
   const fmt = L.fmt;
-  const SAVE_KEY = 'aichi-dentetsu-save-v5', PREF_KEY = 'aichi-dentetsu-pref-v1';
+  const SAVE_KEY = 'aichi-dentetsu-save-v6', PREF_KEY = 'aichi-dentetsu-pref-v1';
   const LEVELS = { 1: 'よわい', 2: 'ふつう', 3: 'つよい' };
   const SPEEDS = [{ v: 1, name: 'ふつう' }, { v: 0.5, name: 'はやい' }, { v: 0.2, name: 'とてもはやい' }, { v: 0, name: 'さいそく' }];
 
@@ -217,9 +217,20 @@
 
   async function announceMonth(s) {
     const cal = L.calendar(s);
+    const big = (m) => Art.season(m).svg.replace(/width="22" height="22"/, 'width="46" height="46"');
     if (cal.month === 4) {
       Au.play('turn');
-      await UI.banner({ title: cal.year + '年目のスタート!', sub: '4月になりました', kind: 'info', art: Art.season(4).svg.replace(/width="22" height="22"/, 'width="46" height="46"') }, 1200);
+      await UI.banner({ title: cal.year + '年目のスタート!', sub: cal.year > 1 ? 'もらえるお金も、へるお金も大きくなった（×' + (Math.round(L.yf(s) * 10) / 10) + '）' : '4月になりました', kind: 'info', art: big(4) }, 1400);
+    } else if (cal.month === 6) {
+      Au.play('turn');
+      await UI.banner({ title: '夏がきた!', sub: '8月まで、青マスでもらえるお金が2倍（赤マスは半分）', kind: 'good', art: big(6) }, 1400);
+    } else if (cal.month === 9) {
+      await UI.banner({ title: '秋になりました', sub: 'マスのお金は、ふつうにもどります', kind: 'info', art: big(9) }, 1100);
+    } else if (cal.month === 12) {
+      Au.play('bad');
+      await UI.banner({ title: '冬がきた!', sub: '2月まで、赤マスでへるお金が2倍（青マスは半分）', kind: 'bad', art: big(12) }, 1400);
+    } else if (cal.month === 3) {
+      await UI.banner({ title: 'もうすぐ春', sub: 'マスのお金は、ふつうにもどります。3月は決算!', kind: 'info', art: big(3) }, 1100);
     } else if (s.players.length > 1 || s.config.years > 1) {
       UI.log(cal.month + '月になりました。', 'sys');
     }
@@ -244,8 +255,13 @@
   function renderHud(first) {
     const s = app.state;
     const cal = L.calendar(s), total = s.config.years * 12, left = Math.max(0, total - s.round);
-    const se = Art.season(cal.month);
-    $('#hud-date').innerHTML = '<span class="season" title="' + se.name + '">' + se.svg + '</span><span class="date-main"><strong>' + cal.year + '年目 ' + cal.month + '月</strong><small>全' + s.config.years + '年・あと' + left + 'か月</small></span>';
+    const se = Art.season(cal.month), sea = L.seasonOf(s);
+    const pct = Math.round((Math.min(total, s.round) / total) * 100);
+    const eff = sea.blue > 1 ? '<span class="sea-chip sea-chip--summer">青マス×' + sea.blue + '</span>' : sea.red > 1 ? '<span class="sea-chip sea-chip--winter">赤マス×' + sea.red + '</span>' : '';
+    $('#hud-date').innerHTML = '<span class="season season--' + sea.key + '" title="' + se.name + '">' + se.svg + '</span>' +
+      '<span class="date-main"><strong><b>' + cal.year + '</b>年目 <b>' + cal.month + '</b>月</strong>' +
+      '<span class="month-bar" role="img" aria-label="全' + total + 'か月のうち' + Math.min(total, s.round) + 'か月目"><i style="width:' + pct + '%"></i></span>' +
+      '<small>のこり' + left + 'か月 ・ マスのお金×' + (Math.round(L.yf(s) * 10) / 10) + '</small></span>' + eff;
     const cur = L.current(s), d = B.distFrom(s.dest)[s.players[cur].pos];
     $('#hud-dest').innerHTML = Art.flag(26) + '<span class="dest-main"><small>目的地</small><strong>' + L.STATION[s.dest].name + '</strong></span><span class="dest-dist">あと<b>' + d + '</b>マス</span><span class="dest-bonus">' + Art.coin(16) + fmt(L.destBonus(s)) + '</span>';
     renderPlayers(first);
@@ -268,6 +284,7 @@
         h('span.pcard-main',
           h('span.pcard-name', esc(p.name), p.type === 'cpu' ? h('em.tag', 'CPU ' + LEVELS[p.level]) : null),
           h('span.pcard-cash', { 'data-cash': '' }, fmt(p.cash)),
+          h('span.pcard-assets'),
           h('span.pcard-meta')));
       card.addEventListener('click', () => { Au.play('click'); showPlayerInfo(p.id); });
       wrap.appendChild(card);
@@ -288,6 +305,7 @@
     cashEl.classList.toggle('is-neg', p.cash < 0);
     app.cash[p.id] = p.cash;
     const props = L.ownedProps(s, p.id).length;
+    card.querySelector('.pcard-assets').textContent = '総資産 ' + fmt(L.assets(s, p.id));
     card.querySelector('.pcard-meta').innerHTML =
       '<span class="chip chip--rank r' + (rank.indexOf(p.id) + 1) + '">' + (rank.indexOf(p.id) + 1) + '位</span>' +
       '<span class="chip" title="手札">' + Art.cardMini(14) + p.cards.length + '</span>' +
@@ -295,7 +313,11 @@
       (p.god ? '<span class="chip chip--god" title="貧乏神">' + Art.god(16) + '</span>' : '');
   }
 
-  function setMsg(html) { $('#action-msg').innerHTML = html; }
+  function setMsg(html) {
+    const s = app.state, p = s && s.players[L.current(s)];
+    const who = p ? '<span class="msg-cash" style="--pc:' + A.CHARS[p.char % A.CHARS.length].color + '">' + Art.character(p.char, 26) + '<span><small>' + esc(p.name) + 'の所持金</small><b' + (p.cash < 0 ? ' class="is-neg"' : '') + '>' + fmt(p.cash) + '</b></span></span>' : '';
+    $('#action-msg').innerHTML = who + '<span class="msg-text">' + html + '</span>';
+  }
   function setActions(btns) {
     const box = $('#action-buttons');
     box.innerHTML = '';
@@ -950,12 +972,12 @@
     const s = app.state, v = app.view, eff = e.eff, p = s.players[e.p];
     switch (eff.kind) {
       case 'blue':
-        Au.play('coin'); v.pop(p.pos, '+' + fmt(eff.amount), 'good'); renderHud();
-        UI.log('<b>' + pname(e.p) + '</b>は青マスで ' + fmt(eff.amount) + ' もらった。', 'good');
+        Au.play('coin'); v.pop(p.pos, '+' + fmt(eff.amount) + (eff.season === '夏' ? ' 夏×2!' : ''), 'good'); renderHud();
+        UI.log('<b>' + pname(e.p) + '</b>は青マスで ' + fmt(eff.amount) + ' もらった。' + (eff.season === '夏' ? '（夏で2倍）' : eff.season === '冬' ? '（冬で半分）' : ''), 'good');
         await sleep(520); break;
       case 'red':
-        Au.play('bad'); v.pop(p.pos, '-' + fmt(eff.amount), 'bad'); renderHud();
-        UI.log('<b>' + pname(e.p) + '</b>は赤マスで ' + fmt(eff.amount) + ' とられた。', 'bad');
+        Au.play('bad'); v.pop(p.pos, '-' + fmt(eff.amount) + (eff.season === '冬' ? ' 冬×2!' : ''), 'bad'); renderHud();
+        UI.log('<b>' + pname(e.p) + '</b>は赤マスで ' + fmt(eff.amount) + ' とられた。' + (eff.season === '冬' ? '（冬で2倍）' : eff.season === '夏' ? '（夏で半分）' : ''), 'bad');
         await sleep(520); break;
       case 'yellow': {
         const c = A.CARDS[eff.card];

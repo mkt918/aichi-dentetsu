@@ -80,7 +80,10 @@
       const need = level === 3 ? 7 : 11;
       if (sc >= need || (level === 3 && s.turn.sale)) return pr.id;
     }
-    return null;
+    // お金があまっているときは、高い物件を買って資産にする（現金は赤マスや貧乏神でへるため）
+    const budget = p.cash * (level === 3 ? 0.6 : 0.45);
+    const big = cands.filter((pr) => L.priceFor(s, pr) <= budget && L.priceFor(s, pr) >= 3000 * f).sort((a, b) => L.priceFor(s, b) - L.priceFor(s, a))[0];
+    return big ? big.id : null;
   }
 
   /** 増資する物件を選ぶ（なければ null） */

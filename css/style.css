@@ -798,3 +798,54 @@ small { font-size: var(--text-xs); }
   .ed-prow { grid-template-columns: 48px minmax(0, 1fr); }
   .ed-price, .ed-fame, .ed-acts { grid-column: 1 / -1; }
 }
+
+/* ======================================================= UI調整: 年・月・季節・所持金を見やすく */
+.banner--good { background: color-mix(in oklch, var(--color-accent) 40%, var(--color-paper)); box-shadow: 0 5px 0 0 var(--color-accent-deep), 0 18px 34px -12px oklch(20% 0.012 250 / 0.45); }
+.hud-date { gap: 8px; }
+.hud-date .date-main { gap: 2px; }
+.hud-date strong { font-size: 1.15rem; }
+.hud-date strong b { font-size: 1.45rem; line-height: 1; }
+.month-bar { display: block; width: 120px; height: 6px; border-radius: var(--radius-pill); background: var(--color-paper-3); overflow: hidden; }
+.month-bar i { display: block; height: 100%; border-radius: inherit; background: var(--color-accent-2); }
+.season { width: 40px; height: 40px; }
+.season--summer { background: color-mix(in oklch, var(--color-accent) 45%, var(--color-paper)); }
+.season--winter { background: color-mix(in oklch, var(--color-accent-2) 25%, var(--color-paper)); }
+.season--spring { background: color-mix(in oklch, var(--color-accent-3) 15%, var(--color-paper)); }
+.season--autumn { background: color-mix(in oklch, var(--color-gold) 30%, var(--color-paper)); }
+.sea-chip { flex: none; padding: 3px 10px; border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: 800; white-space: nowrap; color: var(--color-paper); }
+.sea-chip--summer { background: var(--sq-blue); }
+.sea-chip--winter { background: var(--sq-red); }
+.action-msg { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.msg-cash { display: inline-flex; align-items: center; gap: 6px; padding: 3px 12px 3px 4px; border-radius: var(--radius-pill); background: color-mix(in oklch, var(--pc) 22%, var(--color-paper)); border: 2px solid var(--pc); }
+.msg-cash > span { display: grid; line-height: 1.1; }
+.msg-cash small { font-size: 0.68rem; color: var(--color-ink-2); font-weight: 700; }
+.msg-cash b { font-family: var(--font-display); font-size: 1.1rem; }
+.msg-cash b.is-neg { color: var(--color-money-down); }
+.msg-text { min-width: 0; }
+.pcard-cash { font-size: 1.3rem; }
+.pcard-assets { font-size: 0.72rem; font-weight: 700; color: var(--color-ink-2); white-space: nowrap; }
+/* 物件駅は、はっきりした紫 */
+.st-base { fill: color-mix(in oklch, var(--color-lavender) 72%, var(--color-accent-2) 28%); }
+.pip { stroke-width: 1; }
+/* スマホ: 目的地を小さく、プレイヤーの横スクロールバーを出さない */
+.players { scrollbar-width: none; }
+.players::-webkit-scrollbar { display: none; }
+@media (max-width: 560px) {
+  .month-bar { width: 72px; }
+  .hud-date strong { font-size: 0.95rem; }
+  .hud-date strong b { font-size: 1.2rem; }
+  .season { width: 32px; height: 32px; }
+  .sea-chip { padding: 2px 6px; }
+  .hud-dest .dest-main small { display: none; }
+  .hud-dest { min-width: 0; flex-shrink: 1; }
+  .hud-dest .dest-main strong { font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; }
+  .msg-cash b { font-size: 1rem; }
+}
+@media (max-width: 560px) {
+  .hud-date small { display: none; }
+  .hud-date { gap: 5px; }
+  .sea-chip { font-size: 0.62rem; }
+  .hud-dest .dest-bonus { display: none; }
+  .hud-dest .dest-main { min-width: 0; }
+  .hud-dest .dest-dist b { font-size: 1rem; }
+}
