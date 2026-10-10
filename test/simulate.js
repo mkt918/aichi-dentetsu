@@ -1,7 +1,7 @@
 /* CPU 同士で何ゲームも自動対戦して、ルールの破綻やバランスを確かめる
  * 使い方: node test/simulate.js [ゲーム数=60] */
 'use strict';
-['stations', 'realmap', 'stationtext', 'overrides', 'data', 'layout', 'mapdata', 'board', 'logic', 'ai'].forEach((f) => require('../js/' + f + '.js'));
+['stations', 'stationtext', 'overrides', 'data', 'layout', 'mapdata', 'board', 'logic', 'ai'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi, L = A.Logic, AI = A.AI;
 
 const games = Number(process.argv[2]) || 60;

@@ -1,6 +1,6 @@
 /* 盤面の整合性チェック: node test/validate-map.js */
 'use strict';
-['stations', 'realmap', 'stationtext', 'overrides', 'data', 'layout', 'mapdata', 'board'].forEach((f) => require('../js/' + f + '.js'));
+['stations', 'stationtext', 'overrides', 'data', 'layout', 'mapdata', 'board'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi;
 const B = A.Board, G = A.GRID;
 let problems = 0;
@@ -24,7 +24,7 @@ note(`駅 ${A.STATIONS.length}（物件駅 ${propSt.length} / カード駅 ${car
 if (cardSt.length || plainSt.length) warn('カード駅・通過駅は無くしたはず');
 const FULL = A.MAP_INFO.id === 'full', ST0 = A.START_STATION;
 note('盤面: ' + A.MAP_INFO.name + '（スタート ' + ST0 + '）');
-if (FULL && (A.STATIONS.length < 100 || A.STATIONS.length > 200)) warn('駅は100〜200のはず: ' + A.STATIONS.length);
+if (FULL && (A.STATIONS.length < 80 || A.STATIONS.length > 200)) warn('駅は80〜200のはず: ' + A.STATIONS.length);
 A.STATIONS.forEach((s) => {
   if (s.card && s.props.length) warn(s.name + ': カード駅なのに物件がある');
   if (!s.card && !s.plain && s.props.length < 3) warn(s.name + ': 物件が少なすぎる ' + s.props.length);

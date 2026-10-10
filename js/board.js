@@ -37,10 +37,10 @@
   const TYPE = { b: 'blue', r: 'red', y: 'yellow', e: 'event' };
   /** 遊ぶ盤面（タイトルでえらんだもの）。用意された盤面（A.MAPPRESETS）か、エディターで作った盤面（OVERRIDES.maps） */
   function allMaps() {
-    const presets = (A.MAPPRESETS || [{ id: 'full', name: '愛知ぜんぶ', start: 'nagoya', cells: A.MAPDATA || [] }]).map((m) => Object.assign({ builtin: true }, m));
+    const presets = (A.MAPPRESETS || [{ id: 'full', name: '愛知県', start: 'nagoya', cells: A.MAPDATA || [] }]).map((m) => Object.assign({ builtin: true }, m));
     const own = (A.OVERRIDES && A.OVERRIDES.maps) || {};
     const ok = (c) => Array.isArray(c) && c.length > 10 && c.every((r) => Array.isArray(r) && Number.isFinite(r[0]) && Number.isFinite(r[1]));
-    return presets.concat(Object.keys(own).filter((id) => own[id] && ok(own[id].cells)).map((id) => ({ id, name: own[id].name || '自作マップ', desc: own[id].desc || 'エディターで作った盤面', start: own[id].start || 'nagoya', geo: own[id].geo, cells: own[id].cells, builtin: false })));
+    return presets.concat(Object.keys(own).filter((id) => own[id] && ok(own[id].cells)).map((id) => ({ id, name: own[id].name || '自作マップ', desc: own[id].desc || 'エディターで作った盤面', start: own[id].start || 'nagoya', cells: own[id].cells, builtin: false })));
   }
   function currentMap() {
     const want = (typeof process !== 'undefined' && process.env && process.env.MAP) || (A.OVERRIDES && A.OVERRIDES.mapId) || 'full';

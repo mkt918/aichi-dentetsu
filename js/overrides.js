@@ -11,7 +11,7 @@
 (function (root) {
   'use strict';
   const A = (root.Aichi = root.Aichi || {});
-  const KEY = 'aichi-dentetsu-edit-v1';
+  const KEY = 'aichi-dentetsu-edit-v2'; // v2: 駅を実際の位置の92駅に作り直した（前の駅の書きかえ・自作マップは使えないので読まない）
   function load() {
     try { const o = JSON.parse(root.localStorage.getItem(KEY)); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
   }
@@ -20,8 +20,6 @@
   const OV = Object.assign({ pos: {}, edges: null, props: {}, meta: {}, extra: [], squares: {} }, load());
   if (!Array.isArray(OV.extra)) OV.extra = [];
   if (!OV.maps || typeof OV.maps !== 'object') OV.maps = {};
-  // 前の版の「1つだけの自作盤面」は、自作マップの1つ目として引きつぐ
-  if (Array.isArray(OV.map) && OV.map.length && !Object.keys(OV.maps).length) { OV.maps.my1 = { name: '自作マップ', start: 'nagoya', cells: OV.map }; OV.mapId = OV.mapId || 'my1'; }
   if (!OV.squares || typeof OV.squares !== 'object') OV.squares = {};
   if (!OV.meta || typeof OV.meta !== 'object') OV.meta = {};
   A.OVERRIDES = OV;

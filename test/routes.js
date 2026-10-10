@@ -1,5 +1,5 @@
 /* 「行き方が複数ある駅」の割合を調べる: node test/routes.js */
-['stations','realmap','stationtext','overrides','data','layout','mapdata','board'].forEach(f=>require('../js/'+f+'.js'));
+['stations','stationtext','overrides','data','layout','mapdata','board'].forEach(f=>require('../js/'+f+'.js'));
 const A=globalThis.Aichi,B=A.Board;
 // 橋(切り離すと分断される道)をさがして、名古屋と同じ「2重につながった部分」にある駅を数える
 const ids=B.nodes.map(n=>n.id);const tin={},low={};let t=0;const bridges=new Set();

@@ -10,7 +10,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-['stations', 'realmap', 'stationtext', 'overrides', 'data', 'layout'].forEach((f) => require('../js/' + f + '.js'));
+['stations', 'stationtext', 'overrides', 'data', 'layout'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi;
 const G = A.GRID;
 const STEP = Number(process.env.STEP || 3); // 一本道で、止まるマスを何マスに1つ置くか

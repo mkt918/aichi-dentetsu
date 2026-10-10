@@ -21,13 +21,10 @@
   // ---------- 作業コピー ----------
   const ALL = () => A.ALL_STATIONS || A.STATIONS;
   // マップの一覧（用意されたもの＋自作。自作は保存のたびに変わるので、毎回 localStorage から読む）
-  // 「リアル」のマップ（geo: 'real'）は駅がちがうので、いま読みこんでいる駅と同じ種類のマップだけを出す
-  const GEO = A.REAL ? 'real' : undefined;
   function mapsNow() {
     const own = A.Overrides.load().maps || {};
     return (A.MAPPRESETS || []).map((m) => Object.assign({ builtin: true }, m))
-      .concat(Object.keys(own).filter((id) => own[id] && Array.isArray(own[id].cells)).map((id) => ({ id, name: own[id].name || '自作マップ', start: own[id].start || 'nagoya', geo: own[id].geo, cells: own[id].cells, builtin: false })))
-      .filter((m) => m.geo === GEO);
+      .concat(Object.keys(own).filter((id) => own[id] && Array.isArray(own[id].cells)).map((id) => ({ id, name: own[id].name || '自作マップ', start: own[id].start || 'nagoya', cells: own[id].cells, builtin: false })));
   }
   const mapById = (id) => mapsNow().find((m) => m.id === id) || mapsNow()[0];
   function loadWork(mapId) {
@@ -93,10 +90,7 @@
     if (p.dupName.length) { UI.alert('物件の名前がかぶっています', esc(p.dupName.map(([n, s]) => '「' + n + '」(' + s.map(nameOf).join('・') + ')').join('、')) + '<br>ちがう名前にしてください。'); return false; }
     const W = ed.W;
     const map = Object.values(W.map).sort((u, v) => u[1] - v[1] || u[0] - v[0]);
-    // 物件の書きかえは、いまの駅の分だけ作り直す。別の種類のマップ（リアル⇔ふつう）の駅の分は、そのまま残す
-    const prev = A.Overrides.load(), mine = new Set(allIds());
-    const otherProps = Object.fromEntries(Object.entries(prev.props || {}).filter(([id]) => !mine.has(id)));
-    const out = Object.assign(prev, { props: otherProps, meta: W.meta, extra: W.extra });
+    const out = Object.assign(A.Overrides.load(), { props: {}, meta: W.meta, extra: W.extra });
     delete out.map;
     out.maps = out.maps || {};
     const base = mapById(ed.mapId);
@@ -107,13 +101,13 @@
       if (W.mapName === base.name) W.mapName = base.name + '（改）';
       W.builtin = false;
     }
-    if (!W.builtin) out.maps[ed.mapId] = { name: W.mapName, start: W.start, cells: map, geo: GEO };
+    if (!W.builtin) out.maps[ed.mapId] = { name: W.mapName, start: W.start, cells: map };
     allIds().forEach((id) => {
       const d = ALL().find((s) => s.id === id);
       const orig = d ? d.props.map((q) => [q.name, q.icon, q.price, q.fame]) : [];
       if (JSON.stringify(orig) !== JSON.stringify(W.props[id])) out.props[id] = W.props[id];
     });
-    Object.keys(out.meta).forEach((id) => { const m = out.meta[id]; const d = stationDef(id); if (!d) { if (mine.has(id)) delete out.meta[id]; return; } if ((m.name == null || m.name === d.name) && (m.region == null || m.region === d.region) && (m.desc == null || m.desc === d.desc)) delete out.meta[id]; });
+    Object.keys(out.meta).forEach((id) => { const m = out.meta[id]; const d = stationDef(id); if (!d) { delete out.meta[id]; return; } if ((m.name == null || m.name === d.name) && (m.region == null || m.region === d.region) && (m.desc == null || m.desc === d.desc)) delete out.meta[id]; });
     A.Overrides.save(out);
     ed.dirty = false; const b = $('#ed-save'); if (b) b.classList.remove('is-dirty');
     return true;
@@ -175,7 +169,7 @@
       if (!nm) return;
       const o = A.Overrides.load(); o.maps = o.maps || {};
       const id = 'my' + Date.now().toString(36);
-      o.maps[id] = { name: nm, start: ed.W.start, cells: Object.values(ed.W.map), geo: GEO };
+      o.maps[id] = { name: nm, start: ed.W.start, cells: Object.values(ed.W.map) };
       A.Overrides.save(o);
       ed.dirty = false; switchMap(id);
     });
@@ -184,8 +178,8 @@
   function deleteMap() {
     UI.confirm('マップを消す', '「' + esc(ed.W.mapName) + '」を消します。元にはもどせません。', '消す', 'やめる').then((ok) => {
       if (!ok) return;
-      const o = A.Overrides.load(); if (o.maps) delete o.maps[ed.mapId]; if (o.mapId === ed.mapId) o.mapId = GEO || 'full'; A.Overrides.save(o);
-      ed.dirty = false; switchMap(GEO || 'full');
+      const o = A.Overrides.load(); if (o.maps) delete o.maps[ed.mapId]; if (o.mapId === ed.mapId) o.mapId = 'full'; A.Overrides.save(o);
+      ed.dirty = false; switchMap('full');
     });
   }
   function playMap() {

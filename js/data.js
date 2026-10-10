@@ -4,10 +4,11 @@
   'use strict';
   const A = (root.Aichi = root.Aichi || {});
 
-  /** 世界の拡大率。デザイン空間(1200x1000)を何倍にして使うか */
+  /** 世界の拡大率。デザイン空間を何倍にして画面の px にするか */
   const K = 2.0;
-  /** 経度・緯度 → デザイン空間（愛知県がちょうど入る投影） */
-  const proj = (lon, lat) => [(lon - 136.6) * 900, (35.45 - lat) * 1050];
+  // 経度・緯度 → デザイン空間（K倍する前）。経度は緯度35度の縮みを入れて、実際の縦横比にする。SCALE で全体を大きくする
+  const SCALE = 1.8;
+  const proj = (lon, lat) => [(lon - 136.6) * 860 * SCALE, (35.45 - lat) * 1050 * SCALE];
 
   // ---- 物件の利回り: 安い物件ほど高く(50%〜)、高い物件ほど低く(1〜3%)。名物度(隠しデータ)が高いほど高い ----
   function rateFor(price, fame) {
@@ -50,56 +51,42 @@
     props: itemsOf(r).map((it, i) => ({ id: r.id + '-' + i, station: r.id, name: it[0], icon: it[1], price: it[2], fame: it[3], rate: rateFor(it[2], it[3]) })),
   }));
 
-  // ---- 路線: 駅の並び（隣どうしを線路でつなぐ）。実在の路線をもとに、わかりやすく作り直したもの ----
-  // 1本の路線は、駅を端から順に並べたもの。同じ区間が複数の路線にあれば1本にまとめる。
-  const RG = A.REAL ? A.REAL_GEO : null; // 「愛知（リアル）」マップのときは、realmap.js の路線を使う
-  const LINES = RG ? RG.LINES : [
-    ['東山線', ['fujigaoka', 'hongo', 'kamiyashiro', 'issha', 'hoshigaoka', 'higashiyama', 'motoyama', 'kakuozan', 'ikeshita', 'imaike', 'chikusa', 'shinsakaemachi', 'sakae', 'fushimi', 'nagoya', 'nakamurakuyakusho', 'takabata']],
-    ['名城線', ['ozone', 'nagoyadome', 'sunadabashi', 'chayagasaka', 'jiyugaoka', 'motoyama', 'nagoyadaigaku', 'yagoto', 'mizuho', 'shinzuibashi', 'hotta', 'tenmacho', 'jingunishi', 'kanayama', 'higashibetsuin', 'kamimaezu', 'yabacho', 'sakae', 'hisayaodori', 'nagoyajo', 'meijokoen', 'kurokawa', 'heianzuri', 'ozone']],
-    ['鶴舞線', ['kamiotai', 'joshin', 'marunouchi', 'fushimi', 'osu', 'kamimaezu', 'tsurumai', 'arahata', 'kokiso', 'yagoto', 'hirabari', 'akaike']],
-    ['桜通線', ['nakamura', 'nakamurakuyakusho', 'nagoya', 'kokusaicenter', 'marunouchi', 'hisayaodori', 'tokugawa', 'imaike', 'kokiso', 'mizuho', 'shinzuibashi', 'tokushige']],
-    ['名港線', ['kanayama', 'hibino', 'tokaidori', 'minatoku', 'nagoyakou', 'kinjo']],
-    ['あおなみ線', ['kinjo', 'yatomi']],
-    ['JR東海道線', ['nagoya', 'kanayama', 'atsuta', 'kasadera', 'oidaka', 'obu', 'kariya', 'anjo', 'okazaki', 'goyu', 'kozakai', 'toyohashi']],
-    ['JR中央線', ['ozone', 'kasugai', 'kozoji']],
-    ['JR武豊線', ['obu', 'handa', 'taketoyo']],
-    ['JR飯田線', ['toyohashi', 'toyokawa', 'shinshiro', 'yuya', 'horaiji', 'toei', 'shitara', 'toyone']],
-    ['名鉄瀬戸線', ['imaike', 'ozone', 'moriyama', 'owariasahi', 'seto']],
-    ['上飯田線・小牧線', ['heianzuri', 'kamiida', 'ajiyoshi', 'komaki']],
-    ['名鉄豊田線', ['akaike', 'toyota']],
-    ['JR関西線', ['nagoya', 'kanie', 'yatomi']],
-    ['名鉄名古屋本線', ['nagoya', 'kanayama', 'atsuta', 'narumi', 'arimatsu', 'toyoake', 'chiryu', 'anjo', 'nishio', 'isshiki', 'kira', 'gamagori']],
-    ['名鉄常滑線', ['atsuta', 'tokai', 'obu', 'handa', 'tokoname']],
-    ['名鉄河和線', ['handa', 'kowa']],
-    ['知多半島線', ['kowa', 'mihama', 'utsumi', 'morozaki']],
-    ['名鉄知多線', ['tokai', 'chita', 'tokoname']],
-    ['リニモ', ['fujigaoka', 'nagakute', 'toyota']],
-    ['豊田線', ['toyota', 'sanage', 'obara', 'asuke', 'asahi', 'inabu']],
-    ['名鉄犬山線', ['nagoya', 'kitanagoya', 'iwakura', 'konan', 'inuyama', 'inuyamayuen']],
-    ['小牧線', ['inuyama', 'komaki', 'kasugai']],
-    ['明治村線', ['inuyama', 'meijimura', 'komaki']],
-    ['尾西線', ['nagoya', 'ama', 'inazawa', 'ichinomiya', 'kisogawa']],
-    ['清洲線', ['nagoya', 'kiyosu', 'inazawa']],
-    ['津島線', ['inazawa', 'tsushima', 'aisai', 'yatomi']],
-    ['碧南線', ['kariya', 'takahama', 'hekinan']],
-    ['岡崎線', ['okazaki', 'daijuji', 'matsudaira', 'toyota']],
-    ['幸田線', ['kira', 'kota', 'okazaki']],
-    ['八丁線', ['okazaki', 'hatcho']],
-    ['西浦線', ['gamagori', 'katahara', 'nishiura']],
-    ['三谷線', ['gamagori', 'mitani', 'kozakai']],
-    ['豊橋線', ['toyohashi', 'yoshidajo', 'nonhoi']],
-    ['二川線', ['toyohashi', 'futagawa']],
-    ['御油線', ['goyu', 'toyokawa']],
-    ['新城線', ['shinshiro', 'tsukude', 'asuke']],
-    ['渥美線', ['tahara', 'fukue', 'akabane', 'koiji', 'irago']],
+  // ---- 路線: 実際の鉄道の並び（間の駅はぬいてある）。同じ区間が複数の路線にあれば1本にまとめる ----
+  const LINES = [
+    ['東山線', ['nakamura', 'nagoya', 'sakae', 'imaike', 'higashiyama', 'fujigaoka']],
+    ['名城線', ['sakae', 'nagoyajo', 'ozone']],
+    ['名城線(東)', ['higashiyama', 'yagoto', 'kanayama']],
+    ['名港線', ['kanayama', 'nagoyakou']],
+    ['桜通線', ['yagoto', 'tokushige']],
+    ['あおなみ線', ['nagoya', 'kinjo']],
+    ['JR東海道線', ['kisogawa', 'ichinomiya', 'inazawa', 'kiyosu', 'nagoya', 'kanayama', 'atsuta', 'arimatsu', 'obu', 'kariya', 'anjo', 'okazaki', 'kota', 'gamagori', 'mitani', 'kozakai', 'toyohashi', 'futagawa']],
+    ['名鉄名古屋本線', ['atsuta', 'arimatsu', 'toyoake', 'chiryu', 'anjo', 'okazaki', 'fujikawa', 'goyu', 'kozakai']],
+    ['JR中央線', ['kanayama', 'imaike', 'ozone', 'kachigawa', 'kozoji']],
+    ['名鉄瀬戸線', ['sakae', 'ozone', 'obata', 'asahi', 'seto']],
+    ['名鉄犬山線', ['nagoya', 'nishiharu', 'iwakura', 'konan', 'inuyama']],
+    ['名鉄小牧線', ['nagoyajo', 'kachigawa', 'komaki', 'inuyama']],
+    ['名鉄津島線・尾西線', ['kiyosu', 'tsushima', 'yatomi']],
+    ['名鉄尾西線', ['tsushima', 'ichinomiya']],
+    ['JR関西線', ['nakamura', 'kanie', 'yatomi']],
+    ['リニモ', ['fujigaoka', 'nagakute']],
+    ['愛知環状鉄道', ['okazaki', 'toyota', 'seto', 'kozoji']],
+    ['名鉄豊田線', ['yagoto', 'nisshin', 'miyoshi', 'toyota']],
+    ['名鉄三河線', ['sanage', 'toyota', 'chiryu', 'kariya', 'takahama', 'hekinan']],
+    ['名鉄常滑線', ['atsuta', 'tokai', 'chita', 'tokoname']],
+    ['名鉄河和線', ['tokai', 'agui', 'handa', 'taketoyo', 'kowa']],
+    ['名鉄知多新線', ['taketoyo', 'noma', 'utsumi']],
+    ['JR武豊線', ['obu', 'handa']],
+    ['名鉄西尾線・蒲郡線', ['anjo', 'nishio', 'kira', 'hazu', 'katahara', 'gamagori']],
+    ['西浦半島', ['katahara', 'nishiura']],
+    ['名鉄豊川線', ['goyu', 'toyokawa']],
+    ['JR飯田線', ['toyohashi', 'toyokawa', 'shinshiro', 'nagashino', 'horaiji', 'toei']],
+    ['豊鉄渥美線', ['toyohashi', 'tahara']],
   ];
-
-  // 線路の並びでは結べないもの（橋・海路）。opt: bridge=橋 / sea=フェリー / n=途中マス数の指定
-  const SPECIAL = RG ? RG.SPECIAL : [
+  // 線路の並びでは結べないもの（橋・海路）。opt: bridge=橋 / sea=フェリー / prio=盤面を作るとき先に引く
+  const SPECIAL = [
     ['tokoname', 'centrair', { bridge: true }],
     ['handa', 'hekinan', { bridge: true }],
-    ['toyohashi', 'tahara', { bridge: true }],
-    // 実際の航路: 師崎・河和から日間賀島・篠島へ、篠島から伊良湖へ、一色から佐久島へ
+    // 実際の航路: 師崎・河和〜日間賀島・篠島、篠島〜伊良湖、一色〜佐久島
     ['morozaki', 'himaka', { sea: true }],
     ['morozaki', 'shinojima', { sea: true }],
     ['kowa', 'himaka', { sea: true }],
@@ -108,44 +95,49 @@
     ['isshiki', 'sakushima', { sea: true }],
     ['sakushima', 'himaka', { sea: true }],
   ];
-
-  // 道路: [名前, 種類, 駅の並び]。種類 expressway=高速道路 / national=国道 / pref=県道
-  const ROADS = RG ? RG.ROADS : [
-    ['東名高速道路', 'expressway', ['toyokawa', 'okazaki', 'toyota', 'nagakute', 'yagoto', 'kasugai', 'komaki']],
-    ['名神高速道路', 'expressway', ['komaki', 'ichinomiya', 'kisogawa']],
-    ['新東名高速道路', 'expressway', ['shinshiro', 'tsukude', 'okazaki']],
-    ['伊勢湾岸自動車道', 'expressway', ['toyota', 'toyoake', 'tokai', 'nagoyakou', 'yatomi']],
-    ['知多半島道路', 'expressway', ['tokai', 'chita', 'handa', 'mihama', 'utsumi', 'morozaki']],
-    ['東海環状自動車道', 'expressway', ['toyota', 'seto']],
-    ['国道1号', 'national', ['nagoya', 'atsuta', 'arimatsu', 'toyoake', 'chiryu', 'okazaki', 'goyu', 'toyohashi']],
-    ['国道19号', 'national', ['nagoya', 'ozone', 'kasugai', 'kozoji']],
-    ['国道22号', 'national', ['nagoya', 'kiyosu', 'inazawa', 'ichinomiya', 'kisogawa']],
-    ['国道41号', 'national', ['nagoya', 'komaki', 'inuyama']],
-    ['国道153号', 'national', ['nagakute', 'toyota', 'asuke', 'asahi', 'inabu']],
-    ['国道151号', 'national', ['toyohashi', 'shinshiro', 'shitara', 'toei']],
-    ['県道67号（海部）', 'pref', ['kiyosu', 'ama', 'tsushima', 'yatomi']],
-    ['県道（西春）', 'pref', ['kamiotai', 'kitanagoya', 'kiyosu']],
-    ['県道（中村）', 'pref', ['takabata', 'nakamura', 'nakamurakuyakusho', 'kokusaicenter']],
-    ['県道（城北）', 'pref', ['joshin', 'meijokoen', 'kamiida']],
-    ['県道（港）', 'pref', ['minatoku', 'tokaidori']],
-    ['県道（東区）', 'pref', ['sunadabashi', 'chayagasaka', 'hoshigaoka']],
-    ['県道（天白）', 'pref', ['kamiyashiro', 'fujigaoka']],
-    ['県道（瑞穂）', 'pref', ['tsurumai', 'arahata', 'mizuho', 'shinzuibashi']],
-    ['県道（千種）', 'pref', ['chikusa', 'kakuozan', 'higashiyama']],
-    ['県道（南）', 'pref', ['tenmacho', 'atsuta']],
-    ['県道（南西）', 'pref', ['tokushige', 'akaike', 'narumi', 'toyoake']],
-    ['国道155号', 'national', ['toyota', 'chiryu', 'kariya', 'takahama', 'hekinan']],
-    ['国道259号', 'national', ['toyohashi', 'tahara', 'fukue', 'akabane', 'koiji', 'irago']],
-    ['国道23号', 'national', ['yatomi', 'nagoyakou']],
-    ['国道23号(蒲郡バイパス)', 'national', ['okazaki', 'kota', 'gamagori', 'mitani', 'kozakai', 'toyohashi']],
-    ['国道247号', 'national', ['hekinan', 'handa', 'tokoname']],
-    ['県道', 'pref', ['seto', 'kozoji']],
-    ['県道', 'pref', ['hirabari', 'nisshin', 'nagakute']],
-    ['県道', 'pref', ['isshiki', 'hazu']],
-    ['国道257号', 'national', ['shitara', 'tsugu', 'inabu']],
-    ['県道', 'pref', ['inuyamayuen', 'konan']],
-    ['県道', 'pref', ['daijuji', 'sanage']],
-    ['県道', 'pref', ['nishio', 'kota']],
+  // 盤面を作るとき先に引く道（地方どうしをつなぐ骨組み。あとから引くと、ほかの道にふさがれやすい）
+  [['okazaki', 'fujikawa'], ['fujikawa', 'goyu'], ['goyu', 'toyokawa'], ['toyokawa', 'shinshiro'], ['okazaki', 'tsukude'], ['tsukude', 'shinshiro'],
+    ['kota', 'gamagori'], ['anjo', 'okazaki'], ['kariya', 'anjo'], ['toyohashi', 'toyokawa'], ['shinshiro', 'nagashino'], ['toyota', 'okazaki'],
+    ['toyohashi', 'tahara'], ['kira', 'hazu'], ['hazu', 'katahara'], ['katahara', 'gamagori'], ['tokai', 'chita'], ['chita', 'tokoname'],
+    ['kariya', 'takahama'], ['takahama', 'hekinan'], ['asuke', 'tsukude'], ['asuke', 'inabu'],
+  ].forEach(([a, b]) => SPECIAL.push([a, b, { prio: 1 }]));
+  // 渥美半島は細いので、先に引く順番まで決める（北の道 田原〜福江〜伊良湖と、太平洋ぞいの道 二川〜赤羽根を先に）
+  [['tahara', 'fukue', 4], ['fukue', 'irago', 3], ['tahara', 'akabane', 3], ['futagawa', 'akabane', 2]].forEach(([a, b, p]) => SPECIAL.push([a, b, { prio: p }]));
+  // 道路: [名前, 種類, 駅の並び]。種類 expressway=高速道路 / national=国道 / pref=県道（盤面では線路として引く）
+  const ROADS = [
+    ['伊勢湾岸道', 'expressway', ['yatomi', 'kinjo', 'nagoyakou', 'tokai']],
+    ['名神高速', 'expressway', ['komaki', 'ichinomiya']],
+    ['知多半島道路', 'expressway', ['obu', 'agui']],
+    ['南知多道路', 'expressway', ['kowa', 'morozaki']],
+    ['国道247号', 'national', ['tokoname', 'noma', 'utsumi', 'morozaki']],
+    ['国道41号', 'national', ['nishiharu', 'komaki']],
+    ['国道155号', 'national', ['kisogawa', 'konan']],
+    ['国道155号(瀬戸)', 'national', ['meijimura', 'kozoji']],
+    ['国道155号(豊田)', 'national', ['seto', 'sanage']],
+    ['県道（犬山）', 'pref', ['inuyama', 'meijimura']],
+    ['国道153号', 'national', ['toyota', 'matsudaira', 'asuke', 'inabu']],
+    ['国道419号', 'national', ['sanage', 'obara', 'asuke']],
+    ['国道257号', 'national', ['inabu', 'tsugu', 'shitara', 'horaiji']],
+    ['県道（茶臼山）', 'pref', ['inabu', 'chausu', 'toyone', 'toei']],
+    ['国道473号', 'national', ['shitara', 'toei']],
+    ['県道（津具）', 'pref', ['tsugu', 'chausu']],
+    ['国道301号', 'national', ['okazaki', 'tsukude', 'shinshiro']],
+    ['県道（作手）', 'pref', ['asuke', 'tsukude']],
+    ['国道1号', 'national', ['fujikawa', 'goyu']],
+    ['県道（西尾）', 'pref', ['hekinan', 'isshiki', 'kira']],
+    ['県道（一色）', 'pref', ['nishio', 'isshiki']],
+    ['県道（幸田）', 'pref', ['nishio', 'kota', 'hazu']],
+    ['国道259号', 'national', ['toyohashi', 'tahara', 'fukue', 'irago']],
+    ['国道42号', 'national', ['futagawa', 'akabane']],
+    ['県道（二川）', 'pref', ['futagawa', 'tahara']],
+    ['県道（田原）', 'pref', ['tahara', 'akabane']],
+    ['県道（長久手）', 'pref', ['nagakute', 'seto']],
+    ['県道（長久手南）', 'pref', ['nagakute', 'nisshin']],
+    ['県道（尾張旭）', 'pref', ['asahi', 'nagakute']],
+    ['県道（大府）', 'pref', ['obu', 'toyoake']],
+    ['県道（刈谷）', 'pref', ['kariya', 'obu']],
+    ['県道（徳重）', 'pref', ['tokushige', 'arimatsu']],
+    ['県道（蟹江）', 'pref', ['kanie', 'kiyosu']],
   ];
 
   /** 路線・特別な区間・道路から、駅と駅の区間の一覧を作る（[駅A, 駅B, {kinds: 種類のならび, sea, bridge}]）。同じ区間は1本にまとめる */
@@ -221,25 +213,28 @@
     { id: 'cochin',  name: 'コーチン',   tone: 'mint',     color: 'var(--color-mint)',     desc: '名古屋コーチン' },
   ];
 
-  // ---- 愛知県の輪郭（時計回り。実際の位置に近い投影空間）。layout.js が駅の移動に合わせてゆがませる ----
-  const OUTLINE_REAL = [
-    [250, 45], [320, 22], [430, 30], [520, 85], [640, 120], [760, 125], [860, 95], [960, 150],
-    [1045, 250], [1105, 370], [1130, 470], [1085, 560], [1000, 625], [935, 700], [905, 790],
-    // 渥美半島 南岸 (西へ)
-    [820, 830], [720, 870], [620, 910], [520, 945], [430, 968], [370, 962], [335, 935], [330, 915], [350, 885],
-    // 渥美半島 北岸 (東へ) = 三河湾の南側
-    [400, 860], [480, 835], [550, 808], [610, 800], [675, 800], [712, 790], [722, 768],
-    // 三河湾の北岸 (西へ)
-    [702, 752], [655, 752], [590, 735], [535, 745], [480, 758], [425, 748], [392, 712], [378, 674],
-    // 知多半島 東岸 (南へ)
-    [355, 700], [350, 760], [338, 815], [318, 865], [295, 900], [280, 912],
-    // 知多半島 西岸 (北へ)
-    [245, 900], [225, 860], [215, 800], [200, 740], [180, 690], [165, 650], [160, 600], [172, 545], [170, 490], [160, 455],
-    // 伊勢湾奥・木曽川河口
-    [130, 432], [90, 440],
-    // 北西の県境 (木曽川)
-    [58, 380], [58, 285], [85, 200], [125, 130], [175, 80],
+  // ---- 愛知県の輪郭（経度・緯度。木曽川の河口から時計回り）。BORDER_END までが陸の県境、そのあとが海岸 ----
+  const OUTLINE_LONLAT = [
+    // 木曽川（三重・岐阜との境）を北へ
+    [136.735, 35.030], [136.700, 35.075], [136.690, 35.130], [136.682, 35.200], [136.690, 35.250], [136.712, 35.300], [136.760, 35.352], [136.830, 35.373], [136.900, 35.393], [136.950, 35.420],
+    // 岐阜・長野との境を東へ
+    [137.030, 35.410], [137.050, 35.360], [137.080, 35.320], [137.130, 35.290], [137.200, 35.272], [137.270, 35.275], [137.350, 35.290], [137.430, 35.300], [137.520, 35.282], [137.590, 35.242], [137.660, 35.252], [137.740, 35.212], [137.820, 35.152],
+    // 静岡との境を南へ
+    [137.840, 35.090], [137.780, 35.030], [137.720, 34.970], [137.640, 34.900], [137.580, 34.830], [137.520, 34.770], [137.480, 34.700], [137.460, 34.662],
+    // 太平洋の海岸（渥美半島の南）を西へ
+    [137.380, 34.646], [137.280, 34.625], [137.190, 34.603], [137.100, 34.588], [137.030, 34.574], [136.990, 34.576], [136.978, 34.590],
+    // 渥美半島の北（三河湾）を東へ
+    [137.010, 34.612], [137.060, 34.630], [137.110, 34.650], [137.180, 34.664], [137.230, 34.690], [137.270, 34.700], [137.320, 34.718], [137.352, 34.752], [137.342, 34.790],
+    // 三河湾の北岸を西へ
+    [137.290, 34.802], [137.250, 34.814], [137.212, 34.814], [137.190, 34.790], [137.195, 34.752], [137.160, 34.774], [137.100, 34.786], [137.060, 34.798], [137.020, 34.798], [136.985, 34.830],
+    // 衣浦湾の東岸を北へ、西岸（知多半島の東）を南へ
+    [136.992, 34.880], [136.985, 34.930], [136.975, 34.985], [136.955, 34.962], [136.946, 34.900], [136.936, 34.850], [136.962, 34.790], [136.967, 34.740], [136.987, 34.700],
+    // 知多半島の西岸を北へ
+    [136.950, 34.688], [136.910, 34.703], [136.870, 34.733], [136.852, 34.770], [136.836, 34.820], [136.825, 34.880], [136.840, 34.930], [136.858, 34.990], [136.878, 35.030],
+    // 名古屋港
+    [136.868, 35.062], [136.880, 35.088], [136.864, 35.072], [136.858, 35.030], [136.838, 35.028], [136.800, 35.044], [136.768, 35.030],
   ];
+  const BORDER_END = 30; // ここ（静岡県との境が海に出るところ）までが陸の県境
 
-  Object.assign(A, { K, proj, rateFor, finalPrice, ICON_MULT, REGION, STATIONS, LINES, ROADS, EDGES, DEFAULT_EDGES, GRID, SQUARE_SCALE, STATION_SCALE, SQUARE_MIX, CARDS, HAND_LIMIT, EVENTS, CHARS, OUTLINE_REAL });
+  Object.assign(A, { K, proj, rateFor, finalPrice, ICON_MULT, REGION, STATIONS, LINES, ROADS, EDGES, DEFAULT_EDGES, GRID, SQUARE_SCALE, STATION_SCALE, SQUARE_MIX, CARDS, HAND_LIMIT, EVENTS, CHARS, OUTLINE_LONLAT, BORDER_END });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

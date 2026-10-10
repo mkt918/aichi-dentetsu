@@ -154,21 +154,30 @@
     // 地図が大きくなった分、文字と線の太さだけ f 倍にする（木・家・キャラの大きさは変えない）
     const f = K / 1.7;
     const O = A.OUTLINE;                                       // 画面の座標（px）の県の輪郭
-    const P = (p) => [p[0] * K, p[1] * K];
-    const RG = A.REAL ? A.REAL_GEO : null; // 「愛知（リアル）」マップは、かざりも経度・緯度で置く
-    const W = RG ? (p) => { const q = RG.proj(p[0], p[1]); return [q[0] * K, q[1] * K]; }
-      : (p) => { const q = A.warpPt(p); return [q[0] * K, q[1] * K]; }; // 元の座標 → ゆがみ → px
+    // かざりの位置（経度・緯度）
+    const RIVERS = [
+      [[136.950, 35.420], [136.900, 35.393], [136.830, 35.373], [136.760, 35.352], [136.712, 35.300], [136.690, 35.250], [136.682, 35.200], [136.690, 35.130], [136.700, 35.075], [136.735, 35.030]], // 木曽川
+      [[137.120, 35.300], [137.050, 35.255], [136.990, 35.235], [136.940, 35.215], [136.890, 35.205], [136.855, 35.180], [136.842, 35.130], [136.840, 35.060]], // 庄内川
+      [[137.440, 35.265], [137.350, 35.190], [137.250, 35.140], [137.170, 35.100], [137.135, 35.020], [137.125, 34.950], [137.100, 34.890], [137.070, 34.840], [137.055, 34.802]], // 矢作川
+      [[137.620, 35.060], [137.590, 34.975], [137.540, 34.920], [137.460, 34.860], [137.400, 34.810], [137.345, 34.790]], // 豊川
+    ];
+    // となりの県（陸）の、県境より外がわの点。三重県の伊勢湾岸は南から北へ
+    const SHIZUOKA_COAST = [[137.560, 34.680], [137.760, 34.655], [138.300, 34.620]];
+    const FAR = [[138.300, 35.950], [136.000, 35.950], [136.000, 34.300]];
+    const MIE_COAST = [[136.860, 34.470], [136.720, 34.515], [136.570, 34.600], [136.525, 34.720], [136.580, 34.850], [136.630, 34.960], [136.680, 35.030]];
+    const LABELS = {
+      pref: [[[137.150, 35.380], '岐阜県', 30, 0], [[137.720, 35.290], '長野県', 28, 0], [[136.540, 34.980], '三重県', 30, -90], [[137.720, 34.820], '静岡県', 30, 0]],
+      region: [[[136.840, 35.300], '尾 張', 64, 0], [[137.450, 35.050], '三 河', 76, 0], [[136.895, 34.830], '知多半島', 34, -78], [[137.130, 34.618], '渥美半島', 40, -15]],
+      sea: [[[136.760, 34.900], '伊勢湾', 24, -80], [[137.130, 34.715], '三河湾', 24, 0], [[137.300, 34.540], '太 平 洋', 34, 0]],
+    };
+    const BOATS = [[136.730, 34.830, 1, 0], [137.110, 34.740, 0.9, -1.4], [137.250, 34.560, 1.1, -0.7], [137.560, 34.600, 0.9, -2.1], [136.900, 34.600, 1, -1]];
+    const W = (p) => { const q = A.proj(p[0], p[1]); return [q[0] * K, q[1] * K]; }; // 経度・緯度 → px
     const rnd = B.mulberry32(4242);
     const xs = O.map((p) => p[0]), ys = O.map((p) => p[1]);
     const x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
 
-    // 隣の県（岐阜・長野・静岡・三重）。愛知の外側をぐるっと囲む
-    const border = O.slice(-5).concat(O.slice(0, 15));
-    const mie = [[240, 1030], [180, 1000], [120, 985], [40, 960], [-30, 910], [-80, 850], [-60, 780], [-20, 710], [10, 640], [30, 570], [50, 500], [70, 455]].map(W);
-    const shizuoka = [[1000, 812], [1120, 826], [1500, 850]].map(W);
-    const far = [[1500, -300], [-300, -300], [-300, 1100]].map(P);
-    const neighbor = RG ? O.slice(0, RG.BORDER_END + 1).concat(RG.SHIZUOKA_COAST.map(W), RG.FAR.map(W), RG.MIE_COAST.map(W))
-      : [W([90, 440])].concat(border, shizuoka, far, mie);
+    // 隣の県（岐阜・長野・静岡・三重）。陸の県境から外がわをぐるっと囲む（伊勢湾・三河湾・太平洋は海のまま）
+    const neighbor = O.slice(0, A.BORDER_END + 1).concat(SHIZUOKA_COAST.map(W), FAR.map(W), MIE_COAST.map(W));
     const neighborD = 'M' + neighbor.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + 'Z';
     const landD = smoothPath(O, true);
 
@@ -221,30 +230,21 @@
       }
     }
 
-    // 川（木曽川・矢作川・豊川）。元の座標の点を、ゆがみにそって動かす
-    const riverPts = [
-      [[175, 80], [120, 150], [75, 250], [70, 330], [90, 438]],
-      [[880, 262], [800, 310], [720, 350], [650, 400], [600, 470], [595, 530], [560, 600], [500, 670], [450, 720], [430, 748]],
-      [[965, 372], [930, 450], [890, 520], [850, 590], [800, 660], [785, 720], [780, 766]],
-    ];
-    const rivers = (RG ? RG.RIVERS : riverPts).map((pts) => `<path d="${smoothPath(pts.map(W), false)}" class="m-river" style="stroke-width:${8 * f}"/>`).join('');
+    // 川（木曽川・庄内川・矢作川・豊川）
+    const rivers = RIVERS.map((pts) => `<path d="${smoothPath(pts.map(W), false)}" class="m-river" style="stroke-width:${8 * f}"/>`).join('');
 
     // 島（セントレア・日間賀島・篠島・佐久島）は駅の場所に置く
     const islands = A.STATIONS.filter((s) => s.island).map((s) => {
-      const big = s.id === 'centrair' || s.id === 'r_centrair';
+      const big = s.id === 'centrair';
       return `<ellipse cx="${s.x}" cy="${s.y}" rx="${big ? 62 : 40}" ry="${big ? 30 : 24}" transform="rotate(${big ? -20 : 12} ${s.x} ${s.y})" class="m-island" style="stroke-width:${3 * f}"/>`;
     }).join('');
 
     const boat = (p, s, d) => { const q = W(p); return `<g transform="translate(${q[0].toFixed(0)} ${q[1].toFixed(0)}) scale(${(s * f).toFixed(2)})"><g class="m-boat" style="animation-delay:${d}s"><path d="M-14 0h28l-5 8h-18z" class="m-hull"/><rect x="-1" y="-16" width="2" height="16" class="m-mast"/><path d="M2 -15 14 -3H2z" class="m-sail"/></g></g>`; };
     const label = (p, text, size, rot, cls) => { const q = W(p); return `<text x="${q[0].toFixed(0)}" y="${q[1].toFixed(0)}" font-size="${(size * f).toFixed(0)}" text-anchor="middle" class="${cls}"${rot ? ` transform="rotate(${rot} ${q[0].toFixed(0)} ${q[1].toFixed(0)})"` : ''}>${text}</text>`; };
     // 県名・地方名・海の名前と船。[位置, 文字, 大きさ, 回転] / [x, y, 大きさ, 動きのずれ]
-    const LB = RG ? RG.LABELS : {
-      pref: [[[520, -40], '岐阜県', 30, 0], [[1020, 60], '長野県', 28, 0], [[-150, 520], '三重県', 30, -90], [[1240, 760], '静岡県', 30, 0]],
-      region: [[[300, 190], '尾 張', 64, 0], [[760, 500], '三 河', 76, 0], [[255, 745], '知多半島', 34, -82], [[500, 893], '渥美半島', 40, -9]],
-      sea: [[[76, 590], '伊勢湾', 24, -90], [[500, 800], '三河湾', 24, 0], [[700, 958], '太 平 洋', 34, 0]],
-    };
+    const LB = LABELS;
     const labels = (list, cls) => list.map(([p, t, size, rot]) => label(p, t, size, rot, cls)).join('');
-    const boats = (RG ? RG.BOATS : [[92, 570, 1, 0], [560, 780, 0.9, -1.4], [640, 935, 1.1, -0.7], [860, 884, 0.9, -2.1], [300, 985, 1, -1]]).map(([x, y, s, d]) => boat([x, y], s, d)).join('');
+    const boats = BOATS.map(([x, y, s, d]) => boat([x, y], s, d)).join('');
 
     return `
       <defs>
