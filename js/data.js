@@ -52,7 +52,8 @@
 
   // ---- 路線: 駅の並び（隣どうしを線路でつなぐ）。実在の路線をもとに、わかりやすく作り直したもの ----
   // 1本の路線は、駅を端から順に並べたもの。同じ区間が複数の路線にあれば1本にまとめる。
-  const LINES = [
+  const RG = A.REAL ? A.REAL_GEO : null; // 「愛知（リアル）」マップのときは、realmap.js の路線を使う
+  const LINES = RG ? RG.LINES : [
     ['東山線', ['fujigaoka', 'hongo', 'kamiyashiro', 'issha', 'hoshigaoka', 'higashiyama', 'motoyama', 'kakuozan', 'ikeshita', 'imaike', 'chikusa', 'shinsakaemachi', 'sakae', 'fushimi', 'nagoya', 'nakamurakuyakusho', 'takabata']],
     ['名城線', ['ozone', 'nagoyadome', 'sunadabashi', 'chayagasaka', 'jiyugaoka', 'motoyama', 'nagoyadaigaku', 'yagoto', 'mizuho', 'shinzuibashi', 'hotta', 'tenmacho', 'jingunishi', 'kanayama', 'higashibetsuin', 'kamimaezu', 'yabacho', 'sakae', 'hisayaodori', 'nagoyajo', 'meijokoen', 'kurokawa', 'heianzuri', 'ozone']],
     ['鶴舞線', ['kamiotai', 'joshin', 'marunouchi', 'fushimi', 'osu', 'kamimaezu', 'tsurumai', 'arahata', 'kokiso', 'yagoto', 'hirabari', 'akaike']],
@@ -94,7 +95,7 @@
   ];
 
   // 線路の並びでは結べないもの（橋・海路）。opt: bridge=橋 / sea=フェリー / n=途中マス数の指定
-  const SPECIAL = [
+  const SPECIAL = RG ? RG.SPECIAL : [
     ['tokoname', 'centrair', { bridge: true }],
     ['handa', 'hekinan', { bridge: true }],
     ['toyohashi', 'tahara', { bridge: true }],
@@ -109,7 +110,7 @@
   ];
 
   // 道路: [名前, 種類, 駅の並び]。種類 expressway=高速道路 / national=国道 / pref=県道
-  const ROADS = [
+  const ROADS = RG ? RG.ROADS : [
     ['東名高速道路', 'expressway', ['toyokawa', 'okazaki', 'toyota', 'nagakute', 'yagoto', 'kasugai', 'komaki']],
     ['名神高速道路', 'expressway', ['komaki', 'ichinomiya', 'kisogawa']],
     ['新東名高速道路', 'expressway', ['shinshiro', 'tsukude', 'okazaki']],

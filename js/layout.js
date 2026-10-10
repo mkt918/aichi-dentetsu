@@ -7,6 +7,23 @@
   const K = A.K;
   const S = A.STATIONS;
 
+  // 「愛知（リアル）」マップ: 駅も県の輪郭も、実際の経度・緯度をそのまま同じ倍率で置く（ゆがめない）
+  if (A.REAL) {
+    const RG = A.REAL_GEO;
+    S.forEach((s) => {
+      [s.bx, s.by] = RG.proj(s.lon, s.lat).map((v) => Math.round(v * 10) / 10);
+      s.x = Math.round(s.bx * K); s.y = Math.round(s.by * K);
+      s.def = [s.x, s.y];
+      const ov = A.OVERRIDES && A.OVERRIDES.pos && A.OVERRIDES.pos[s.id];
+      if (ov && isFinite(ov[0]) && isFinite(ov[1])) { s.x = Math.round(ov[0]); s.y = Math.round(ov[1]); }
+    });
+    const OUTLINE_BASE = RG.OUTLINE_LONLAT.map((p) => RG.proj(p[0], p[1]));
+    const OUTLINE = OUTLINE_BASE.map((p) => [Math.round(p[0] * K), Math.round(p[1] * K)]);
+    const warp = (x, y) => [x, y];
+    Object.assign(A, { warp, warpPt: (p) => warp(p[0], p[1]), OUTLINE_BASE, OUTLINE, LAYOUT_P0: S.map((s) => [s.bx, s.by]) });
+    return;
+  }
+
   const MIN_GAP = 52;      // 駅どうしの最小距離（デザイン空間）。K倍した値が画面上の距離
   const ITER = 1800;
 

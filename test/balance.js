@@ -1,7 +1,7 @@
 /* お金の出入りのバランスを見る: node test/balance.js [ゲーム数=60] [年数=3]
  * CPU（ふつう）3人で遊ばせ、どこからいくら入って出ていったかを、年ごとに集計する。 */
 'use strict';
-['stations', 'stationtext', 'overrides', 'data', 'layout', 'mapdata', 'board', 'logic', 'ai'].forEach((f) => require('../js/' + f + '.js'));
+['stations', 'realmap', 'stationtext', 'overrides', 'data', 'layout', 'mapdata', 'board', 'logic', 'ai'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi, L = A.Logic, AI = A.AI;
 const games = Number(process.argv[2]) || 60, years = Number(process.argv[3]) || 3;
 

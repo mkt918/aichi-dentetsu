@@ -1,6 +1,6 @@
 /* 盤面の整合性チェック: node test/validate-map.js */
 'use strict';
-['stations', 'stationtext', 'overrides', 'data', 'layout', 'mapdata', 'board'].forEach((f) => require('../js/' + f + '.js'));
+['stations', 'realmap', 'stationtext', 'overrides', 'data', 'layout', 'mapdata', 'board'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi;
 const B = A.Board, G = A.GRID;
 let problems = 0;

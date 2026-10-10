@@ -155,7 +155,9 @@
     const f = K / 1.7;
     const O = A.OUTLINE;                                       // 画面の座標（px）の県の輪郭
     const P = (p) => [p[0] * K, p[1] * K];
-    const W = (p) => { const q = A.warpPt(p); return [q[0] * K, q[1] * K]; }; // 元の座標 → ゆがみ → px
+    const RG = A.REAL ? A.REAL_GEO : null; // 「愛知（リアル）」マップは、かざりも経度・緯度で置く
+    const W = RG ? (p) => { const q = RG.proj(p[0], p[1]); return [q[0] * K, q[1] * K]; }
+      : (p) => { const q = A.warpPt(p); return [q[0] * K, q[1] * K]; }; // 元の座標 → ゆがみ → px
     const rnd = B.mulberry32(4242);
     const xs = O.map((p) => p[0]), ys = O.map((p) => p[1]);
     const x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
@@ -165,7 +167,8 @@
     const mie = [[240, 1030], [180, 1000], [120, 985], [40, 960], [-30, 910], [-80, 850], [-60, 780], [-20, 710], [10, 640], [30, 570], [50, 500], [70, 455]].map(W);
     const shizuoka = [[1000, 812], [1120, 826], [1500, 850]].map(W);
     const far = [[1500, -300], [-300, -300], [-300, 1100]].map(P);
-    const neighbor = [W([90, 440])].concat(border, shizuoka, far, mie);
+    const neighbor = RG ? O.slice(0, RG.BORDER_END + 1).concat(RG.SHIZUOKA_COAST.map(W), RG.FAR.map(W), RG.MIE_COAST.map(W))
+      : [W([90, 440])].concat(border, shizuoka, far, mie);
     const neighborD = 'M' + neighbor.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + 'Z';
     const landD = smoothPath(O, true);
 
@@ -224,16 +227,24 @@
       [[880, 262], [800, 310], [720, 350], [650, 400], [600, 470], [595, 530], [560, 600], [500, 670], [450, 720], [430, 748]],
       [[965, 372], [930, 450], [890, 520], [850, 590], [800, 660], [785, 720], [780, 766]],
     ];
-    const rivers = riverPts.map((pts) => `<path d="${smoothPath(pts.map(W), false)}" class="m-river" style="stroke-width:${8 * f}"/>`).join('');
+    const rivers = (RG ? RG.RIVERS : riverPts).map((pts) => `<path d="${smoothPath(pts.map(W), false)}" class="m-river" style="stroke-width:${8 * f}"/>`).join('');
 
     // 島（セントレア・日間賀島・篠島・佐久島）は駅の場所に置く
     const islands = A.STATIONS.filter((s) => s.island).map((s) => {
-      const big = s.id === 'centrair';
+      const big = s.id === 'centrair' || s.id === 'r_centrair';
       return `<ellipse cx="${s.x}" cy="${s.y}" rx="${big ? 62 : 40}" ry="${big ? 30 : 24}" transform="rotate(${big ? -20 : 12} ${s.x} ${s.y})" class="m-island" style="stroke-width:${3 * f}"/>`;
     }).join('');
 
     const boat = (p, s, d) => { const q = W(p); return `<g transform="translate(${q[0].toFixed(0)} ${q[1].toFixed(0)}) scale(${(s * f).toFixed(2)})"><g class="m-boat" style="animation-delay:${d}s"><path d="M-14 0h28l-5 8h-18z" class="m-hull"/><rect x="-1" y="-16" width="2" height="16" class="m-mast"/><path d="M2 -15 14 -3H2z" class="m-sail"/></g></g>`; };
     const label = (p, text, size, rot, cls) => { const q = W(p); return `<text x="${q[0].toFixed(0)}" y="${q[1].toFixed(0)}" font-size="${(size * f).toFixed(0)}" text-anchor="middle" class="${cls}"${rot ? ` transform="rotate(${rot} ${q[0].toFixed(0)} ${q[1].toFixed(0)})"` : ''}>${text}</text>`; };
+    // 県名・地方名・海の名前と船。[位置, 文字, 大きさ, 回転] / [x, y, 大きさ, 動きのずれ]
+    const LB = RG ? RG.LABELS : {
+      pref: [[[520, -40], '岐阜県', 30, 0], [[1020, 60], '長野県', 28, 0], [[-150, 520], '三重県', 30, -90], [[1240, 760], '静岡県', 30, 0]],
+      region: [[[300, 190], '尾 張', 64, 0], [[760, 500], '三 河', 76, 0], [[255, 745], '知多半島', 34, -82], [[500, 893], '渥美半島', 40, -9]],
+      sea: [[[76, 590], '伊勢湾', 24, -90], [[500, 800], '三河湾', 24, 0], [[700, 958], '太 平 洋', 34, 0]],
+    };
+    const labels = (list, cls) => list.map(([p, t, size, rot]) => label(p, t, size, rot, cls)).join('');
+    const boats = (RG ? RG.BOATS : [[92, 570, 1, 0], [560, 780, 0.9, -1.4], [640, 935, 1.1, -0.7], [860, 884, 0.9, -2.1], [300, 985, 1, -1]]).map(([x, y, s, d]) => boat([x, y], s, d)).join('');
 
     return `
       <defs>
@@ -245,17 +256,15 @@
       <rect x="${(x0 - 3000).toFixed(0)}" y="${(y0 - 3000).toFixed(0)}" width="${(x1 - x0 + 6000).toFixed(0)}" height="${(y1 - y0 + 6000).toFixed(0)}" fill="url(#pWave)" opacity=".8"/>
       <path d="${neighborD}" class="m-neighbor"/>
       <path d="${neighborD}" fill="url(#pDot)" opacity=".6"/>
-      ${label([520, -40], '岐阜県', 30, 0, 'm-pref')}${label([1020, 60], '長野県', 28, 0, 'm-pref')}
-      ${label([-150, 520], '三重県', 30, -90, 'm-pref')}${label([1240, 760], '静岡県', 30, 0, 'm-pref')}
+      ${labels(LB.pref, 'm-pref')}
       <path d="${landD}" class="m-shore" style="stroke-width:${(34 * f).toFixed(1)}"/>
       <path d="${landD}" class="m-land" style="stroke-width:${(3.5 * f).toFixed(1)}"/>
       <path d="${landD}" fill="url(#pDot)"/>
       ${rivers}${islands}
       ${deco}
-      ${label([300, 190], '尾 張', 64, 0, 'm-region')}${label([760, 500], '三 河', 76, 0, 'm-region')}
-      ${label([255, 745], '知多半島', 34, -82, 'm-region')}${label([500, 893], '渥美半島', 40, -9, 'm-region')}
-      ${label([76, 590], '伊勢湾', 24, -90, 'm-sea-label')}${label([500, 800], '三河湾', 24, 0, 'm-sea-label')}${label([700, 958], '太 平 洋', 34, 0, 'm-sea-label')}
-      ${boat([92, 570], 1, 0)}${boat([560, 780], 0.9, -1.4)}${boat([640, 935], 1.1, -0.7)}${boat([860, 884], 0.9, -2.1)}${boat([300, 985], 1, -1)}`;
+      ${labels(LB.region, 'm-region')}
+      ${labels(LB.sea, 'm-sea-label')}
+      ${boats}`;
   }
 
   // ---------- タイトルロゴ ----------

@@ -10,7 +10,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-['stations', 'stationtext', 'overrides', 'data', 'layout'].forEach((f) => require('../js/' + f + '.js'));
+['stations', 'realmap', 'stationtext', 'overrides', 'data', 'layout'].forEach((f) => require('../js/' + f + '.js'));
 const A = globalThis.Aichi;
 const G = A.GRID;
 const STEP = Number(process.env.STEP || 3); // 一本道で、止まるマスを何マスに1つ置くか
@@ -169,8 +169,8 @@ function astar(a, b, water, strict) {
 // つなぐ順: まず全駅がつながる「骨組み」（実際の鉄道を優先して短い順）、そのあと輪を作る道。
 // 1つの駅から出る道は4本まで（上下左右に1本ずつ）。道どうしは重ねず、くっつけない。
 const railKey = new Set(); A.LINES.forEach(([, st]) => { for (let i = 0; i + 1 < st.length; i++) railKey.add([st[i], st[i + 1]].sort().join('|')); });
-const all = EDGES.map(([a, b, opt]) => ({ a, b, water: !!(opt && (opt.sea || opt.bridge)), rail: railKey.has([a, b].sort().join('|')) || !!(opt && (opt.sea || opt.bridge)), len: Math.abs(cell[a][0] - cell[b][0]) + Math.abs(cell[a][1] - cell[b][1]) }));
-const w = (e) => e.len * (e.rail ? 1 : 1.6);
+const all = EDGES.map(([a, b, opt]) => ({ a, b, water: !!(opt && (opt.sea || opt.bridge)), rail: railKey.has([a, b].sort().join('|')) || !!(opt && (opt.sea || opt.bridge)), len: Math.abs(cell[a][0] - cell[b][0]) + Math.abs(cell[a][1] - cell[b][1]), prio: (opt && +opt.prio) || 0 }));
+const w = (e) => -1000 * e.prio + e.len * (e.rail ? 1 : 1.6); // prio の道（骨組みにしたい道）は先に引く。数が大きいほど先
 all.sort((u, v) => w(u) - w(v));
 const degN = {}; S.forEach((s) => { degN[s.id] = 0; });
 const parent = {}; S.forEach((s) => { parent[s.id] = s.id; });
@@ -184,10 +184,11 @@ function route(e, mode) {
     c.sort((u, v) => u.length + turns(u) * 2 - (v.length + turns(v) * 2));
     if (c.length) path = c[0];
     if (!path) path = astar(e.a, e.b, e.water, true);
-    if (path && turns(path) > 4) path = null; // くねくねした道は作らない
+    if (path && turns(path) > (e.prio ? 8 : 4)) path = null; // くねくねした道は作らない（骨組みの道は、海岸ぞいなどで少し曲がってもよい）
   } else {
     path = astar(e.a, e.b, e.water, true) || astar(e.a, e.b, e.water, false);
   }
+  if (path && e.water && path.length - 1 > e.len * 2 + 6) path = null; // 海路が大回り（半島の外をまわる など）になるなら引かない
   return path;
 }
 function commit(e, path) {
@@ -309,16 +310,21 @@ const out = '/* あいち電鉄 — 盤面データ（tools/genmap.js が作成�
   ' * となりあう（上下左右の）マスどうしが、道でつながる。陸の外のマスは海路として描く。 */\n' +
   '(function (root) {\n  \'use strict\';\n  const A = (root.Aichi = root.Aichi || {});\n  A.MAPDATA = [\n' +
   rows.map((r) => '    ' + JSON.stringify(r)).join(',\n') + ',\n  ];\n})(typeof globalThis !== \'undefined\' ? globalThis : this);\n';
-if (process.env.OUT === 'json') { process.stdout.write(JSON.stringify(rows)); process.exit(0); }
-fs.writeFileSync(path.join(__dirname, '..', 'js', 'mapdata.js'), out);
-console.log('マス', list.length, JSON.stringify(cnt));
-if (fails.length) console.log('注意:', fails.join(' '));
-if (process.env.DBG) {
+// OUT=json のときは盤面を標準出力へ、注意やDBGの図は標準エラーへ出す（js/mapdata.js は書きかえない）
+const JSONOUT = process.env.OUT === 'json';
+const log = (...m) => (JSONOUT ? console.error : console.log)(...m);
+function report() {
+  if (fails.length) log('注意:', fails.join(' '));
+  if (!process.env.DBG) return;
   process.env.DBG.split(',').forEach((pair) => {
     const [a, b] = pair.split('-');
     const xs = [cell[a][0], cell[b][0]], ys = [cell[a][1], cell[b][1]];
     const x0 = Math.min(...xs) - 3, x1 = Math.max(...xs) + 3, y0 = Math.min(...ys) - 3, y1 = Math.max(...ys) + 3;
-    console.log(pair, cell[a], cell[b]);
-    for (let y = y0; y <= y1; y++) { let row = ''; for (let x = x0; x <= x1; x++) { const c = cells.get(K(x, y)); row += c ? (c.t === 'S' ? (c.st === a ? 'A' : c.st === b ? 'B' : '@') : c.t === 't' ? '-' : 'o') : isLand(x, y) ? '.' : '~'; } console.log(row); }
+    log(pair, cell[a], cell[b]);
+    for (let y = y0; y <= y1; y++) { let row = ''; for (let x = x0; x <= x1; x++) { const c = cells.get(K(x, y)); row += c ? (c.t === 'S' ? (c.st === a ? 'A' : c.st === b ? 'B' : '@') : c.t === 't' ? '-' : 'o') : isLand(x, y) ? '.' : '~'; } log(row); }
   });
 }
+if (JSONOUT) { report(); process.stdout.write(JSON.stringify(rows)); process.exit(0); }
+fs.writeFileSync(path.join(__dirname, '..', 'js', 'mapdata.js'), out);
+log('マス', list.length, JSON.stringify(cnt));
+report();
