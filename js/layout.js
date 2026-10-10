@@ -70,6 +70,25 @@
     const u = Math.max(0, Math.min(1, (r - 60) / 160)), f = 1 + SE * dir * u * u * (3 - 2 * u);
     return [C[0] + dx * f, C[1] + dy * f];
   });
+  // 知多・渥美・三河と島は、実際の地形のとおりの形にする（ゆがみをとって、全体を同じ倍率で大きくするだけ）。
+  // それまでの配置にいちばん合う「拡大＋平行移動」を最小二乗で求め、実際の位置（p0）に当てはめる
+  {
+    const SOUTH = new Set(['chita', 'atsumi', 'nishimikawa', 'higashimikawa']);
+    const idx = S.map((s, i) => (SOUTH.has(s.region) ? i : -1)).filter((i) => i >= 0);
+    const fitIdx = idx.filter((i) => !S[i].pin);
+    const n = fitIdx.length;
+    const mp = [0, 1].map((k) => fitIdx.reduce((a2, i) => a2 + p0[i][k], 0) / n), mb = [0, 1].map((k) => fitIdx.reduce((a2, i) => a2 + base1[i][k], 0) / n);
+    let num = 0, den = 0;
+    fitIdx.forEach((i) => { const u = [p0[i][0] - mp[0], p0[i][1] - mp[1]], v = [base1[i][0] - mb[0], base1[i][1] - mb[1]]; num += u[0] * v[0] + u[1] * v[1]; den += u[0] * u[0] + u[1] * u[1]; });
+    const sc = (num / den) * (A.MAP_SOUTH != null ? A.MAP_SOUTH : 1.15);
+    // 海に近い南（緯度34.95より南）ほど実際の形に寄せる。北の内陸は、それまでの配置のまま（名古屋側とつながりを保つ）
+    idx.forEach((i) => {
+      const u = Math.max(0, Math.min(1, (34.95 - S[i].lat) / 0.13)), w = u * u * (3 - 2 * u);
+      const sim = [mb[0] + (p0[i][0] - mp[0]) * sc, mb[1] + (p0[i][1] - mp[1]) * sc];
+      base1[i] = [base1[i][0] + (sim[0] - base1[i][0]) * w, base1[i][1] + (sim[1] - base1[i][1]) * w];
+    });
+    A.SOUTH_SCALE = sc;
+  }
   const pos = base1.map((p, i) => [p[0] + ((i * 7) % 5 - 2) * 0.3, p[1] + ((i * 11) % 5 - 2) * 0.3]); // 同じ位置の駅をずらす微小な揺らぎ
   for (let it = 0; it < ITER; it++) {
     const tether = 0.01 + 0.03 * (1 - it / ITER);

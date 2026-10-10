@@ -98,10 +98,14 @@
     ['tokoname', 'centrair', { bridge: true }],
     ['handa', 'hekinan', { bridge: true }],
     ['toyohashi', 'tahara', { bridge: true }],
-    ['morozaki', 'shinojima', { sea: true, n: 2 }],
-    ['shinojima', 'himaka', { sea: true, n: 1 }],
-    ['himaka', 'irago', { sea: true, n: 3 }],
-    ['isshiki', 'sakushima', { sea: true, n: 2 }],
+    // 実際の航路: 師崎・河和から日間賀島・篠島へ、篠島から伊良湖へ、一色から佐久島へ
+    ['morozaki', 'himaka', { sea: true }],
+    ['morozaki', 'shinojima', { sea: true }],
+    ['kowa', 'himaka', { sea: true }],
+    ['himaka', 'shinojima', { sea: true }],
+    ['shinojima', 'irago', { sea: true }],
+    ['isshiki', 'sakushima', { sea: true }],
+    ['sakushima', 'himaka', { sea: true }],
   ];
 
   // 道路: [名前, 種類, 駅の並び]。種類 expressway=高速道路 / national=国道 / pref=県道
