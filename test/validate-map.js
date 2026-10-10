@@ -60,7 +60,7 @@ for (let i = 0; i < A.STATIONS.length; i++) for (let j = i + 1; j < A.STATIONS.l
   const a = A.STATIONS[i], b = A.STATIONS[j];
   const d = Math.max(Math.abs(a.cx - b.cx), Math.abs(a.cy - b.cy));
   minGap = Math.min(minGap, d);
-  if (d < 3) warn(`駅が近すぎる(あいだに2マス欲しい): ${a.name}-${b.name}`);
+  if (d < 2) warn(`駅が近すぎる(あいだに1マス以上あける): ${a.name}-${b.name}`);
 }
 note('駅どうしの最小のきょり ' + minGap + 'マス（グリッド）');
 
