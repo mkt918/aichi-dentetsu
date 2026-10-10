@@ -739,8 +739,6 @@ small { font-size: var(--text-xs); }
 .screen--editor .ed-body { grid-template-rows: auto auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); }
 .screen--editor .ed-body:has(.ed-list) { grid-template-columns: minmax(150px, 230px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
 .ed-grid { fill: none; stroke: var(--color-ink); stroke-width: 1; opacity: 0.12; }
-.ed-hit { fill: transparent; pointer-events: none; }
-.ed-hit.is-on { pointer-events: all; cursor: crosshair; }
 .ed-st-box { fill: color-mix(in oklch, var(--color-lavender) 70%, var(--color-paper)); stroke: var(--color-ink); stroke-width: 3; }
 .ed-st.is-sel .ed-st-box { stroke: var(--color-focus); stroke-width: 6; }
 .ed-st-name { font-size: 13px; }

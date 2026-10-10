@@ -41,6 +41,7 @@
       this.pipEls = {};
       this.camAnim = 0;
       this.onStationTap = null;
+      this.onTap = null;
       this._pick = null;
       this._bindInput();
       if (root.ResizeObserver) new ResizeObserver(() => this.applyCam()).observe(stage);
@@ -388,6 +389,7 @@
           const st = down.target.closest('.st');
           if (pk && this._pick) this.resolvePick(pk.getAttribute('data-id'));
           else if (st && this.onStationTap) this.onStationTap(st.getAttribute('data-id'));
+          else if (this.onTap) this.onTap(down.x, down.y); // エディター用: 地図のどこかをタップした
         }
         if (!pts.size) down = null;
       };

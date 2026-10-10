@@ -1,5 +1,6 @@
 /* あいち電鉄 — エディター（マップ / 物件）
- * マップ: グリッドのマスを、ポチポチ押して（なぞって）作る。となりあうマスは自動で線路がつながる。
+ * マップ: 駅編集（駅の追加・移動・削除）と線路編集（線路の追加・削除）の2つのモード。どちらもマスをタップして直す。
+ *   ドラッグは地図の移動、ホイール／ピンチは拡大・縮小だけに使う。となりあうマスは自動で線路がつながる。
  * 保存先はブラウザの localStorage（js/overrides.js が起動時に読みこむ）。「ゲームにもどる」で読みこみ直して反映する。 */
 (function (root) {
   'use strict';
@@ -217,7 +218,9 @@
     const bar = h('div.ed-bar'), pal = h('div.ed-pal'), msg = h('p.ed-msg'), status = h('div.ed-status');
     body.append(bar, pal, msg, stage, status);
 
-    const TOOLS = [['view', '地図を動かす'], ['rail', '線路をおく'], ['station', '駅をおく'], ['erase', '消す']];
+    // ドラッグ＝地図を動かす、ホイール／ピンチ＝拡大・縮小はどちらのモードでも同じ。編集はタップだけで行う
+    const TOOLS = [['station', '駅編集'], ['rail', '線路編集']];
+    if (!TOOLS.some(([k]) => k === ed.tool)) ed.tool = 'station';
     function refreshBar() {
       bar.innerHTML = '';
       TOOLS.forEach(([k, t]) => bar.appendChild(h('button.btn.btn--sm.btn--lav' + (ed.tool === k ? '' : '.btn--outline'), { type: 'button', onclick: () => { ed.tool = k; ed.selSt = null; refreshAll(); } }, t)));
@@ -232,11 +235,9 @@
     }
     function setMsg() {
       msg.textContent = {
-        view: 'ドラッグで地図を動かし、ホイールやピンチで拡大・縮小します。',
-        rail: '色をえらんで、マスを押すか、なぞって線路をおきます。となりあうマスは自動でつながります。',
-        station: ed.selSt ? '「' + nameOf(ed.selSt) + '」を動かす場所のマスを押してください（駅を押すと別の駅をえらびます）。' : '空いているマスを押すと、そこに置く駅をえらべます。置いてある駅を押すと、その駅をえらんで動かせます。',
-        erase: '押した（なぞった）マスを消します。駅を消すと、その駅はゲームに出なくなります（物件は残ります）。',
-      }[ed.tool];
+        rail: '空いているマスを押すと、えらんだ色の線路をおきます。線路を押すと消えます（ちがう色をえらんでいるときは、その色にぬりかえます）。となりあうマスは自動でつながります。',
+        station: ed.selSt ? '「' + nameOf(ed.selSt) + '」をえらんでいます。動かしたい場所のマスを押すと、そこへ動きます（もう一度その駅を押すと、えらぶのをやめます）。' : '空いているマスや線路を押すと、駅を追加できます。置いてある駅を押すと、その駅をえらんで動かしたり消したりできます。',
+      }[ed.tool] + '（ドラッグで地図を動かし、ホイールやピンチで拡大・縮小）';
     }
     function drawStatus() {
       const p = problems();
@@ -252,7 +253,7 @@
     const refreshAll = () => { draw(); refreshBar(); setMsg(); drawStatus(); };
 
     // ---- 描画 ----
-    let gL, gC, hit, view;
+    let gL, gC, view;
     const landC = new Map();
     const inPoly = (x, y) => { let c = false; const P = A.OUTLINE; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, yi] = P[i], [xj, yj] = P[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c; } return c; };
     const land = (x, y) => { const k = x + ',' + y; if (!landC.has(k)) landC.set(k, inPoly(x, y)); return landC.get(k); };
@@ -263,10 +264,8 @@
       const box = [Math.min(...xs) - 200, Math.min(...ys) - 200, Math.max(...xs) + 200, Math.max(...ys) + 200];
       bg.appendChild(sv('rect', { x: box[0], y: box[1], width: box[2] - box[0], height: box[3] - box[1], fill: 'url(#pEdGrid)' }));
       gL = sv('g'); gC = sv('g');
-      hit = sv('rect', { x: box[0], y: box[1], width: box[2] - box[0], height: box[3] - box[1], class: 'ed-hit' + (ed.tool === 'view' ? '' : ' is-on') });
-      svg.append(bg, gL, gC, hit);
+      svg.append(bg, gL, gC);
       drawCells();
-      bindHit();
     }
     function drawCells() {
       gL.innerHTML = ''; gC.innerHTML = '';
@@ -298,43 +297,20 @@
       });
     }
 
-    // ---- 押す・なぞる ----
-    const cellAt = (ev) => { const w = view.toWorld(ev.clientX, ev.clientY); return [Math.round(w.x / G), Math.round(w.y / G)]; };
-    function apply(x, y) {
-      const W = ed.W, k = KEY(x, y), cur = W.map[k];
-      if (ed.tool === 'rail') {
-        if (cur && cur[2] === 'S') return false;
-        if (cur && cur[2] === ed.paint) return false;
-        W.map[k] = [x, y, ed.paint]; return true;
-      }
-      if (ed.tool === 'erase') { if (!cur) return false; delete W.map[k]; return true; }
-      return false;
+    // ---- タップ（ドラッグ・ピンチは MapView が地図の移動・拡大に使う） ----
+    function onTap(cx, cy) {
+      const w = view.toWorld(cx, cy), x = Math.round(w.x / G), y = Math.round(w.y / G);
+      if (ed.tool === 'station') stationTap(x, y);
+      else railTap(x, y);
     }
-    function bindHit() {
-      let drag = null;
-      hit.addEventListener('pointerdown', (ev) => {
-        if (ed.tool === 'view') return;
-        ev.stopPropagation(); ev.preventDefault();
-        hit.setPointerCapture(ev.pointerId);
-        const [x, y] = cellAt(ev);
-        if (ed.tool === 'station') { stationTap(x, y); return; }
-        drag = { last: [x, y], before: snapshot(), changed: apply(x, y) };
-        if (drag.changed) drawCells();
-      });
-      hit.addEventListener('pointermove', (ev) => {
-        if (!drag) return;
-        let [x, y] = cellAt(ev), [lx, ly] = drag.last;
-        if (x === lx && y === ly) return;
-        let ch = false;
-        while (lx !== x || ly !== y) { // 斜めにとんでも、上下左右のマスでうめる
-          if (lx !== x) lx += Math.sign(x - lx); else ly += Math.sign(y - ly);
-          ch = apply(lx, ly) || ch;
-        }
-        drag.last = [x, y];
-        if (ch) { drag.changed = true; drawCells(); }
-      });
-      const end = () => { if (!drag) return; if (drag.changed) { ed.undo.push(drag.before); ed.redo = []; markDirty(); drawStatus(); refreshBar(); } drag = null; };
-      hit.addEventListener('pointerup', end); hit.addEventListener('pointercancel', end);
+    function railTap(x, y) {
+      const W = ed.W, k = KEY(x, y), cur = W.map[k];
+      if (cur && cur[2] === 'S') return; // 駅は駅編集で
+      pushUndo();
+      if (!cur) W.map[k] = [x, y, ed.paint];
+      else if (cur[2] === ed.paint) delete W.map[k];
+      else W.map[k] = [x, y, ed.paint];
+      markDirty(); drawCells(); drawStatus(); refreshBar();
     }
     function stationTap(x, y) {
       const W = ed.W, cur = W.map[KEY(x, y)];
@@ -378,7 +354,8 @@
         h('label', '名前 ', nm),
         h('label', '地域 ', regionSelect(id, (v) => setMeta(id, 'region', v))),
         h('button.btn.btn--sm.btn--lav', { type: 'button', onclick: () => { ed.tab = 'props'; ed.cur = id; render(); } }, '説明・物件を直す'),
-        h('button.btn.btn--sm.btn--coral.btn--soft', { type: 'button', onclick: () => { const c = stationCell(id); if (!c) return; pushUndo(); ed.W.map[KEY(c[0], c[1])] = [c[0], c[1], 'b']; ed.selSt = null; markDirty(); refreshAll(); } }, '盤面から外す'));
+        h('button.btn.btn--sm.btn--coral.btn--soft', { type: 'button', onclick: () => { const c = stationCell(id); if (!c) return; pushUndo(); ed.W.map[KEY(c[0], c[1])] = [c[0], c[1], 'b']; ed.selSt = null; markDirty(); refreshAll(); } }, 'この駅を消す'),
+        h('button.btn.btn--sm.btn--outline', { type: 'button', onclick: () => { ed.selSt = null; refreshAll(); } }, 'えらぶのをやめる'));
     }
 
     function resetAll() {
@@ -403,6 +380,7 @@
     }
 
     view = new A.MapView(svg, stage);
+    view.onTap = onTap;
     refreshAll();
     view.fit(0);
   }
