@@ -995,6 +995,31 @@
     v.refresh(s); renderHud();
   }
 
+  /** ルーレット: 候補をくるくる回して（はじめ速く、だんだんゆっくり）、最後に結果で止める。ふつうの速さで約0.8秒 */
+  async function roulette(kind, list, final, render) {
+    const box = $('#roulette'), dur = 800 * UI.rt.speed;
+    if (dur <= 0 || UI.rt.reduceMotion || !list.length) return;
+    box.className = 'roulette is-show roulette--' + kind;
+    const t0 = performance.now();
+    let i = Math.floor(Math.random() * list.length);
+    try {
+      while (performance.now() - t0 < dur) {
+        const t = (performance.now() - t0) / dur;
+        box.innerHTML = render(list[i++ % list.length]);
+        Au.play('tick');
+        await sleep(45 + 150 * t * t);
+      }
+      box.innerHTML = render(final);
+      box.classList.add('is-hit');
+      await sleep(300);
+    } finally { box.className = 'roulette'; box.innerHTML = ''; }
+  }
+  /** 青・赤マスのお金の候補（logic.js の squareEffect と同じ式。3通り） */
+  function squareAmounts(s, kind) {
+    const se = L.seasonOf(s), f = L.yf(s);
+    return [0, 1, 2].map((k) => L.round10(((kind === 'blue' ? 400 : 200) + k * 200) * f * (kind === 'blue' ? se.blue : se.red)));
+  }
+
   async function rollEvent(e) {
     const box = $('#dice-box'), sp = UI.rt.speed;
     const dice = e.dice;
@@ -1037,7 +1062,8 @@
       }
     }
     v.refresh(s); renderHud();
-    // 新しい目的地を見せる
+    // 新しい目的地をルーレットで決めて見せる
+    await roulette('dest', A.STATIONS.filter((st) => st.id !== r.oldDest).map((st) => st.id), r.newDest, (id) => Art.flag(26) + esc(L.STATION[id].name) + '<small>駅</small>');
     if (v.follow) {
       v.setCam({ cx: B.byId[r.newDest].x, cy: B.byId[r.newDest].y, w: 620 }, 500);
       await UI.banner({ title: '次の目的地は…', sub: esc(L.STATION[r.newDest].name) + '!', kind: 'info', art: Art.flag(46) }, 1400);
@@ -1049,15 +1075,18 @@
     const s = app.state, v = app.view, eff = e.eff, p = s.players[e.p];
     switch (eff.kind) {
       case 'blue':
+        await roulette('blue', squareAmounts(s, 'blue'), eff.amount, (v) => '+' + fmt(v));
         Au.play('coin'); v.pop(p.pos, '+' + fmt(eff.amount) + (eff.season === '夏' ? ' 夏×2!' : ''), 'good'); renderHud();
         UI.log('<b>' + pname(e.p) + '</b>は青マスで ' + fmt(eff.amount) + ' もらった。' + (eff.season === '夏' ? '（夏で2倍）' : eff.season === '冬' ? '（冬で半分）' : ''), 'good');
         await sleep(520); break;
       case 'red':
+        await roulette('red', squareAmounts(s, 'red'), eff.amount, (v) => '-' + fmt(v));
         Au.play('bad'); v.pop(p.pos, '-' + fmt(eff.amount) + (eff.season === '冬' ? ' 冬×2!' : ''), 'bad'); renderHud();
         UI.log('<b>' + pname(e.p) + '</b>は赤マスで ' + fmt(eff.amount) + ' とられた。' + (eff.season === '冬' ? '（冬で2倍）' : eff.season === '夏' ? '（夏で半分）' : ''), 'bad');
         await sleep(520); break;
       case 'yellow': {
         const c = A.CARDS[eff.card];
+        await roulette('card', Object.keys(A.CARDS), eff.card, (cid) => '<span>' + Art.cardMini(26) + '</span>' + esc(A.CARDS[cid].name));
         Au.play('card'); renderHud();
         if (eff.got && eff.got.added) {
           UI.log('<b>' + pname(e.p) + '</b>は黄マスで<b>' + esc(c.name) + '</b>をもらった。', 'card');

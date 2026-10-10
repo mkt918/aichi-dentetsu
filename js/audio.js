@@ -46,6 +46,7 @@
   const SFX = {
     click: () => tone(660, 0, 0.07, 'triangle', 0.12),
     dice: () => { for (let i = 0; i < 6; i++) noise(i * 0.09, 0.06, 0.07); tone(300, 0.55, 0.12, 'square', 0.06); },
+    tick: () => tone(1250, 0, 0.03, 'square', 0.04),
     step: () => tone(520 + Math.random() * 60, 0, 0.06, 'triangle', 0.09),
     coin: () => { tone(988, 0, 0.09, 'square', 0.08); tone(1319, 0.08, 0.16, 'square', 0.08); },
     bad: () => { tone(330, 0, 0.14, 'sawtooth', 0.09, 220); tone(220, 0.14, 0.22, 'sawtooth', 0.09, 150); },
